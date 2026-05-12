@@ -6,9 +6,19 @@ import java.util.UUID
 
 data class QrCodeResponse(
     val ticketId: UUID,
+    val contractTokenId: String,
     val payload: String,
     val qrPngBase64: String,
+    val barcodeText: String,
     val expiresAt: Instant,
+)
+
+data class CheckInMessageResponse(
+    val ticketId: UUID,
+    val contractTokenId: String,
+    val claimedOwner: String,
+    val expiresAt: Instant,
+    val messageHash: String,
 )
 
 data class CheckInRecordResponse(
