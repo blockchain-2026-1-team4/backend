@@ -10,6 +10,8 @@ interface TicketRepository : JpaRepository<TicketEntity, UUID> {
 
     fun findAllByOwnerId(ownerId: UUID): List<TicketEntity>
 
+    fun findAllByOwnerWalletAddressIgnoreCase(walletAddress: String): List<TicketEntity>
+
     fun countByEventId(eventId: UUID): Long
 
     fun countByStatus(status: TicketStatus): Long
