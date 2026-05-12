@@ -1,9 +1,13 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:blockchain_backend;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    url: jdbc:h2:mem:${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     username: sa
     password:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
       ddl-auto: none
+
+app:
+  storage:
+    image-directory: ./build/test-images
