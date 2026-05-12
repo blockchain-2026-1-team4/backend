@@ -20,7 +20,17 @@ data class CheckInCommand(
 
 data class QrCodeDto(
     val ticketId: UUID,
+    val contractTokenId: String,
     val payload: String,
     val qrPngBase64: String,
+    val barcodeText: String,
     val expiresAt: Instant,
+)
+
+data class CheckInMessageDto(
+    val ticketId: UUID,
+    val contractTokenId: String,
+    val claimedOwner: String,
+    val expiresAt: Instant,
+    val messageHash: String,
 )
