@@ -4,6 +4,7 @@ import com.blockchain2026.team4.backend.common.security.AuthPrincipal
 import com.blockchain2026.team4.backend.common.security.CurrentUser
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
+import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
 import com.blockchain2026.team4.backend.ticket.facade.TicketFacade
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -43,6 +44,15 @@ class TicketController(
     @Operation(summary = "티켓 상세 조회", description = "티켓 좌석, 소유자, 온체인 tokenId, 사용 상태를 조회합니다.")
     @GetMapping("/tickets/{ticketId}")
     fun get(@PathVariable ticketId: UUID): TicketResponse = ticketFacade.get(ticketId)
+
+    @Operation(summary = "지갑별 티켓 조회", description = "특정 지갑 주소가 보유한 티켓 목록을 조회합니다.")
+    @GetMapping("/wallets/{walletAddress}/tickets")
+    fun listByOwnerWallet(@PathVariable walletAddress: String): List<TicketResponse> =
+        ticketFacade.listByOwnerWallet(walletAddress)
+
+    @Operation(summary = "티켓 유효성 조회", description = "체크인 전 티켓이 판매 완료, 미사용, 활성 이벤트 상태인지 확인합니다.")
+    @GetMapping("/tickets/{ticketId}/validity")
+    fun validity(@PathVariable ticketId: UUID): TicketValidityResponse = ticketFacade.validity(ticketId)
 
     @Operation(summary = "1차 티켓 구매", description = "사용자가 1차 판매 티켓을 구매하고 백엔드가 컨트랙트 구매 트랜잭션을 제출합니다.")
     @PostMapping("/tickets/{ticketId}/purchase")
