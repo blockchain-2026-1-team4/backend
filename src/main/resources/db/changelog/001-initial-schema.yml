@@ -1,0 +1,425 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-users
+      author: codex
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: wallet_address
+                  type: varchar(64)
+                  constraints:
+                    unique: true
+              - column:
+                  name: email
+                  type: varchar(255)
+                  constraints:
+                    unique: true
+              - column:
+                  name: password_hash
+                  type: varchar(255)
+              - column:
+                  name: display_name
+                  type: varchar(120)
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: user_roles
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_user_roles_user
+                    references: users(id)
+              - column:
+                  name: role
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: user_roles
+            columnNames: user_id, role
+            constraintName: pk_user_roles
+
+  - changeSet:
+      id: 002-auth-nonces
+      author: codex
+      changes:
+        - createTable:
+            tableName: wallet_login_nonces
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: wallet_address
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: nonce
+                  type: varchar(120)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: message
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expires_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: consumed_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 003-core-business
+      author: codex
+      changes:
+        - createTable:
+            tableName: organizer_applications
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_organizer_applications_user
+                    references: users(id)
+              - column:
+                  name: business_name
+                  type: varchar(180)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: contact_email
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reviewed_by
+                  type: uuid
+              - column:
+                  name: reviewed_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: events
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: organizer_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_events_organizer
+                    references: users(id)
+              - column:
+                  name: contract_event_id
+                  type: numeric(78,0)
+              - column:
+                  name: name
+                  type: varchar(180)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: category
+                  type: varchar(80)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: venue
+                  type: varchar(180)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: image_url
+                  type: varchar(500)
+              - column:
+                  name: event_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ticket_price_wei
+                  type: numeric(78,0)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_ticket_count
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: primary_sale_start
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: primary_sale_end
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: resale_allowed
+                  type: boolean
+                  constraints:
+                    nullable: false
+              - column:
+                  name: max_resale_price_rate
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: resale_start
+                  type: timestamp with time zone
+              - column:
+                  name: resale_end
+                  type: timestamp with time zone
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: tickets
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: event_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_tickets_event
+                    references: events(id)
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_tickets_owner
+                    references: users(id)
+              - column:
+                  name: contract_token_id
+                  type: numeric(78,0)
+              - column:
+                  name: seat_info
+                  type: varchar(120)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: original_price_wei
+                  type: numeric(78,0)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: used_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: resale_listings
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: ticket_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_resale_listings_ticket
+                    references: tickets(id)
+              - column:
+                  name: seller_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_resale_listings_seller
+                    references: users(id)
+              - column:
+                  name: price_wei
+                  type: numeric(78,0)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: check_in_records
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: ticket_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_check_in_records_ticket
+                    references: tickets(id)
+              - column:
+                  name: validator_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_check_in_records_validator
+                    references: users(id)
+              - column:
+                  name: result
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: checked_in_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: memo
+                  type: text
+        - createTable:
+            tableName: blockchain_transactions
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: action
+                  type: varchar(80)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: transaction_hash
+                  type: varchar(120)
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: error_message
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
