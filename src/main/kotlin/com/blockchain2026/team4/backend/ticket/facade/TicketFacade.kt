@@ -2,6 +2,7 @@ package com.blockchain2026.team4.backend.ticket.facade
 
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
+import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
 import com.blockchain2026.team4.backend.ticket.dto.TicketIssueCommand
 import com.blockchain2026.team4.backend.ticket.mapper.TicketApiMapper
 import com.blockchain2026.team4.backend.ticket.service.TicketService
@@ -24,4 +25,9 @@ class TicketFacade(
     fun listByEvent(eventId: UUID): List<TicketResponse> = ticketApiMapper.toResponses(ticketService.listByEvent(eventId))
 
     fun listMine(userId: UUID): List<TicketResponse> = ticketApiMapper.toResponses(ticketService.listMine(userId))
+
+    fun listByOwnerWallet(walletAddress: String): List<TicketResponse> =
+        ticketApiMapper.toResponses(ticketService.listByOwnerWallet(walletAddress))
+
+    fun validity(ticketId: UUID): TicketValidityResponse = ticketApiMapper.toResponse(ticketService.validity(ticketId))
 }
