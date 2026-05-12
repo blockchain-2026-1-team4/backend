@@ -9,9 +9,11 @@ data class ResaleListingResponse(
     val id: UUID,
     val ticketId: UUID,
     val sellerId: UUID,
+    val buyerId: UUID?,
     val eventId: UUID,
     val priceWei: BigInteger,
     val status: ResaleListingStatus,
+    val purchasedAt: Instant?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
