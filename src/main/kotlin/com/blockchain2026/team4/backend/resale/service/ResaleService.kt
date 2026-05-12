@@ -5,6 +5,7 @@ import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransaction
 import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
+import com.blockchain2026.team4.backend.event.entity.EventStatus
 import com.blockchain2026.team4.backend.resale.dto.ResaleCreateCommand
 import com.blockchain2026.team4.backend.resale.dto.ResaleListingDto
 import com.blockchain2026.team4.backend.resale.entity.ResaleListingEntity
@@ -38,6 +39,7 @@ class ResaleService(
         val now = Instant.now()
 
         if (ticket.owner?.id != userId) throw BusinessException(ErrorCode.FORBIDDEN, "소유한 티켓만 리셀 등록할 수 있습니다.")
+        if (event.status != EventStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트 티켓만 리셀 등록할 수 있습니다.")
         if (ticket.status != TicketStatus.SOLD) throw BusinessException(ErrorCode.CONFLICT, "판매된 미사용 티켓만 리셀 등록할 수 있습니다.")
         if (!event.resaleAllowed) throw BusinessException(ErrorCode.CONFLICT, "이 이벤트는 리셀을 허용하지 않습니다.")
         if (event.resaleStart == null || event.resaleEnd == null || now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd)) {
@@ -60,15 +62,26 @@ class ResaleService(
 
     @Transactional
     fun purchaseListing(userId: UUID, listingId: UUID): ResaleListingDto {
+        val buyer = userService.findEntity(userId)
         val listing = findEntity(listingId)
+        val event = listing.ticket.event
+        val now = Instant.now()
         if (listing.status != ResaleListingStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 리셀 등록이 아닙니다.")
         if (listing.seller.id == userId) throw BusinessException(ErrorCode.INVALID_REQUEST, "본인 티켓은 구매할 수 없습니다.")
+        if (event.status != EventStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 리셀 티켓만 구매할 수 있습니다.")
+        if (event.resaleStart == null || event.resaleEnd == null || now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd)) {
+            throw BusinessException(ErrorCode.CONFLICT, "리셀 가능 기간이 아닙니다.")
+        }
+        if (listing.ticket.status != TicketStatus.LISTED) throw BusinessException(ErrorCode.CONFLICT, "리셀 등록 중인 티켓이 아닙니다.")
+        if (listing.ticket.owner?.id != listing.seller.id) throw BusinessException(ErrorCode.CONFLICT, "현재 티켓 소유자와 판매자가 일치하지 않습니다.")
         listing.ticket.contractTokenId?.let {
             val submission = trustTicketGateway.purchaseResaleTicket(it, listing.priceWei)
             blockchainTransactionService.record(submission)
         }
         ticketService.markSoldFromResale(listing.ticket, userId)
         listing.status = ResaleListingStatus.SOLD
+        listing.buyer = buyer
+        listing.purchasedAt = now
         return resaleListingMapper.toDto(listing)
     }
 
@@ -104,7 +117,28 @@ class ResaleService(
 
     fun countActive(): Long = resaleListingRepository.countByStatus(ResaleListingStatus.ACTIVE)
 
-    private fun findEntity(listingId: UUID): ResaleListingEntity =
+    @Transactional(readOnly = true)
+    fun listTransactions(page: Int, size: Int, status: ResaleListingStatus?): PageResponse<ResaleListingDto> {
+        val pageable = PageRequest.of(page, size)
+        val listings = status?.let { resaleListingRepository.findAllByStatus(it, pageable) }
+            ?: resaleListingRepository.findAllByStatusNot(ResaleListingStatus.ACTIVE, pageable)
+        return PageResponse(
+            items = listings.content.map(resaleListingMapper::toDto),
+            page = listings.number,
+            size = listings.size,
+            totalElements = listings.totalElements,
+            totalPages = listings.totalPages,
+            hasNext = listings.hasNext(),
+        )
+    }
+
+    @Transactional
+    fun closeActiveListingForUsedTicket(ticketId: UUID) {
+        val listing = resaleListingRepository.findByTicketIdAndStatus(ticketId, ResaleListingStatus.ACTIVE) ?: return
+        listing.status = ResaleListingStatus.CANCELED
+    }
+
+    fun findEntity(listingId: UUID): ResaleListingEntity =
         resaleListingRepository.findById(listingId)
             .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "리셀 등록을 찾을 수 없습니다.") }
 }
