@@ -2,6 +2,7 @@ package com.blockchain2026.team4.backend.checkin.controller
 
 import com.blockchain2026.team4.backend.checkin.controller.request.CheckInRequest
 import com.blockchain2026.team4.backend.checkin.controller.request.QrCreateRequest
+import com.blockchain2026.team4.backend.checkin.controller.response.CheckInMessageResponse
 import com.blockchain2026.team4.backend.checkin.controller.response.CheckInRecordResponse
 import com.blockchain2026.team4.backend.checkin.controller.response.QrCodeResponse
 import com.blockchain2026.team4.backend.checkin.facade.CheckInFacade
@@ -16,7 +17,9 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 
 @Tag(name = "체크인", description = "QR 생성, 검증, 입장 처리 API")
@@ -33,8 +36,16 @@ class CheckInController(
         @Valid @RequestBody request: QrCreateRequest,
     ): QrCodeResponse = checkInFacade.createQr(principal.userId, ticketId, request)
 
+    @Operation(summary = "체크인 서명 메시지 조회", description = "티켓 QR 서명에 사용할 온체인 메시지 해시를 조회합니다.")
+    @GetMapping("/tickets/{ticketId}/check-in-message")
+    fun checkInMessage(
+        @PathVariable ticketId: UUID,
+        @RequestParam claimedOwner: String,
+        @RequestParam expiresAt: Instant,
+    ): CheckInMessageResponse = checkInFacade.checkInMessage(ticketId, claimedOwner, expiresAt)
+
     @Operation(summary = "입장 처리", description = "검증자가 QR 서명 유효성을 확인하고 컨트랙트 useTicket 트랜잭션으로 티켓 사용 완료를 처리합니다.")
-    @PreAuthorize("hasRole('VALIDATOR')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/check-ins")
     fun checkIn(
         @CurrentUser principal: AuthPrincipal,
@@ -42,7 +53,10 @@ class CheckInController(
     ): CheckInRecordResponse = checkInFacade.checkIn(principal.userId, request)
 
     @Operation(summary = "체크인 이력 조회", description = "특정 티켓의 체크인 시도와 성공 이력을 조회합니다.")
-    @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN','VALIDATOR')")
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/tickets/{ticketId}/check-ins")
-    fun history(@PathVariable ticketId: UUID): List<CheckInRecordResponse> = checkInFacade.history(ticketId)
+    fun history(
+        @CurrentUser principal: AuthPrincipal,
+        @PathVariable ticketId: UUID,
+    ): List<CheckInRecordResponse> = checkInFacade.history(principal.userId, ticketId)
 }
