@@ -1,5 +1,7 @@
 package com.blockchain2026.team4.backend.common.config
 
+import com.blockchain2026.team4.backend.common.security.ApiAccessDeniedHandler
+import com.blockchain2026.team4.backend.common.security.ApiAuthenticationEntryPoint
 import com.blockchain2026.team4.backend.common.security.JwtAuthenticationFilter
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -17,12 +19,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val apiAuthenticationEntryPoint: ApiAuthenticationEntryPoint,
+    private val apiAccessDeniedHandler: ApiAccessDeniedHandler,
 ) {
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain =
         http
             .csrf(AbstractHttpConfigurer<*, *>::disable)
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .exceptionHandling {
+                it.authenticationEntryPoint(apiAuthenticationEntryPoint)
+                it.accessDeniedHandler(apiAccessDeniedHandler)
+            }
             .authorizeHttpRequests {
                 it.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/images/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
