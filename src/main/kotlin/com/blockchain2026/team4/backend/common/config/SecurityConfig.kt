@@ -35,6 +35,8 @@ class SecurityConfig(
                 it.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/images/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/events/**", "/api/v1/resale-listings/**").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/tickets/me").authenticated()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/tickets/*", "/api/v1/tickets/*/validity", "/api/v1/tickets/*/check-in-message", "/api/v1/wallets/*/tickets").permitAll()
                 it.anyRequest().authenticated()
             }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
