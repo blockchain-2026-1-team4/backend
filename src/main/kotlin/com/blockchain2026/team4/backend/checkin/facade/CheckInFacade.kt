@@ -2,6 +2,7 @@ package com.blockchain2026.team4.backend.checkin.facade
 
 import com.blockchain2026.team4.backend.checkin.controller.request.CheckInRequest
 import com.blockchain2026.team4.backend.checkin.controller.request.QrCreateRequest
+import com.blockchain2026.team4.backend.checkin.controller.response.CheckInMessageResponse
 import com.blockchain2026.team4.backend.checkin.controller.response.CheckInRecordResponse
 import com.blockchain2026.team4.backend.checkin.controller.response.QrCodeResponse
 import com.blockchain2026.team4.backend.checkin.dto.CheckInCommand
@@ -9,6 +10,7 @@ import com.blockchain2026.team4.backend.checkin.dto.QrCreateCommand
 import com.blockchain2026.team4.backend.checkin.mapper.CheckInApiMapper
 import com.blockchain2026.team4.backend.checkin.service.CheckInService
 import org.springframework.stereotype.Component
+import java.time.Instant
 import java.util.UUID
 
 @Component
@@ -32,6 +34,9 @@ class CheckInFacade(
             ),
         )
 
-    fun history(ticketId: UUID): List<CheckInRecordResponse> =
-        checkInApiMapper.toResponses(checkInService.history(ticketId))
+    fun checkInMessage(ticketId: UUID, claimedOwner: String, expiresAt: Instant): CheckInMessageResponse =
+        checkInApiMapper.toResponse(checkInService.checkInMessage(ticketId, claimedOwner, expiresAt))
+
+    fun history(actorId: UUID, ticketId: UUID): List<CheckInRecordResponse> =
+        checkInApiMapper.toResponses(checkInService.history(actorId, ticketId))
 }
