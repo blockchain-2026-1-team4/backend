@@ -8,12 +8,17 @@ import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
 import com.blockchain2026.team4.backend.event.dto.EventCreateCommand
 import com.blockchain2026.team4.backend.event.dto.EventDto
+import com.blockchain2026.team4.backend.event.dto.EventResalePolicyCommand
 import com.blockchain2026.team4.backend.event.dto.EventStatusCommand
 import com.blockchain2026.team4.backend.event.dto.EventUpdateCommand
+import com.blockchain2026.team4.backend.event.dto.EventValidatorDto
 import com.blockchain2026.team4.backend.event.entity.EventEntity
 import com.blockchain2026.team4.backend.event.entity.EventStatus
+import com.blockchain2026.team4.backend.event.entity.EventValidatorEntity
 import com.blockchain2026.team4.backend.event.mapper.EventMapper
+import com.blockchain2026.team4.backend.event.mapper.EventValidatorMapper
 import com.blockchain2026.team4.backend.event.repository.EventRepository
+import com.blockchain2026.team4.backend.event.repository.EventValidatorRepository
 import com.blockchain2026.team4.backend.user.entity.UserRole
 import com.blockchain2026.team4.backend.user.service.UserService
 import org.springframework.data.domain.PageRequest
@@ -26,10 +31,12 @@ import java.util.UUID
 @Service
 class EventService(
     private val eventRepository: EventRepository,
+    private val eventValidatorRepository: EventValidatorRepository,
     private val userService: UserService,
     private val trustTicketGateway: TrustTicketGateway,
     private val blockchainTransactionService: BlockchainTransactionService,
     private val eventMapper: EventMapper,
+    private val eventValidatorMapper: EventValidatorMapper,
 ) {
     @Transactional
     fun create(organizerId: UUID, command: EventCreateCommand): EventDto {
@@ -64,6 +71,8 @@ class EventService(
                 eventAt = command.eventAt,
                 ticketPriceWei = command.ticketPriceWei,
                 totalTicketCount = command.totalTicketCount,
+                remainingTicketCount = command.totalTicketCount,
+                soldTicketCount = 0,
                 primarySaleStart = command.primarySaleStart,
                 primarySaleEnd = command.primarySaleEnd,
                 resaleAllowed = command.resaleAllowed,
@@ -79,9 +88,15 @@ class EventService(
     fun get(eventId: UUID): EventDto = eventMapper.toDto(findEntity(eventId))
 
     @Transactional(readOnly = true)
-    fun list(page: Int, size: Int, status: EventStatus?): PageResponse<EventDto> {
+    fun list(page: Int, size: Int, status: EventStatus?, category: String?, query: String?, flagged: Boolean? = null): PageResponse<EventDto> {
         val pageable = PageRequest.of(page, size)
-        val events = status?.let { eventRepository.findAllByStatus(it, pageable) } ?: eventRepository.findAll(pageable)
+        val events = eventRepository.search(
+            status = status,
+            category = category?.takeIf { it.isNotBlank() },
+            query = query?.takeIf { it.isNotBlank() },
+            flagged = flagged,
+            pageable = pageable,
+        )
         return PageResponse(
             items = events.content.map(eventMapper::toDto),
             page = events.number,
@@ -119,6 +134,23 @@ class EventService(
     }
 
     @Transactional
+    fun updateResalePolicy(organizerId: UUID, eventId: UUID, command: EventResalePolicyCommand): EventDto {
+        val event = findEntity(eventId)
+        requireOrganizer(event, organizerId)
+        validateResalePolicy(
+            resaleAllowed = command.resaleAllowed,
+            maxResalePriceRate = command.maxResalePriceRate,
+            resaleStart = command.resaleStart,
+            resaleEnd = command.resaleEnd,
+        )
+        event.resaleAllowed = command.resaleAllowed
+        event.maxResalePriceRate = command.maxResalePriceRate
+        event.resaleStart = command.resaleStart
+        event.resaleEnd = command.resaleEnd
+        return eventMapper.toDto(event)
+    }
+
+    @Transactional
     fun changeStatus(actorId: UUID, eventId: UUID, command: EventStatusCommand): EventDto {
         val event = findEntity(eventId)
         val actor = userService.getUser(actorId)
@@ -132,6 +164,13 @@ class EventService(
             val submission = trustTicketGateway.setEventStatus(it, active)
             blockchainTransactionService.record(submission)
         }
+        return eventMapper.toDto(event)
+    }
+
+    @Transactional
+    fun flag(eventId: UUID, flagged: Boolean): EventDto {
+        val event = findEntity(eventId)
+        event.flagged = flagged
         return eventMapper.toDto(event)
     }
 
@@ -150,6 +189,48 @@ class EventService(
 
     fun countActive(): Long = eventRepository.countByStatus(EventStatus.ACTIVE)
 
+    @Transactional
+    fun registerPrimarySale(event: EventEntity) {
+        if (event.remainingTicketCount <= 0) {
+            throw BusinessException(ErrorCode.CONFLICT, "남은 티켓 수량이 없습니다.")
+        }
+        event.remainingTicketCount -= 1
+        event.soldTicketCount += 1
+    }
+
+    @Transactional
+    fun addValidator(actorId: UUID, eventId: UUID, validatorId: UUID): EventValidatorDto {
+        val event = findEntity(eventId)
+        val actor = userService.getUser(actorId)
+        if (actor.id != event.organizer.id && !actor.roles.contains(UserRole.ADMIN)) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "이벤트 검증자 등록 권한이 없습니다.")
+        }
+        val validator = userService.findEntity(validatorId)
+        val existing = eventValidatorRepository.findByEventIdAndValidatorId(eventId, validatorId)
+        val saved = existing ?: eventValidatorRepository.save(EventValidatorEntity(event = event, validator = validator))
+
+        if (existing == null) {
+            event.contractEventId?.let { contractEventId ->
+                validator.walletAddress?.let { wallet ->
+                    val submission = trustTicketGateway.addEventValidator(contractEventId, wallet)
+                    blockchainTransactionService.record(submission)
+                }
+            }
+        }
+        return eventValidatorMapper.toDto(saved)
+    }
+
+    @Transactional(readOnly = true)
+    fun listValidators(eventId: UUID): List<EventValidatorDto> =
+        eventValidatorMapper.toDtos(eventValidatorRepository.findAllByEventId(eventId))
+
+    @Transactional(readOnly = true)
+    fun canValidate(eventId: UUID, userId: UUID): Boolean {
+        val user = userService.getUser(userId)
+        return user.roles.any { it == UserRole.ADMIN || it == UserRole.VALIDATOR } ||
+            eventValidatorRepository.existsByEventIdAndValidatorId(eventId, userId)
+    }
+
     private fun requireOrganizer(event: EventEntity, organizerId: UUID) {
         if (event.organizer.id != organizerId) {
             throw BusinessException(ErrorCode.FORBIDDEN, "해당 이벤트의 주최자만 처리할 수 있습니다.")
@@ -167,17 +248,27 @@ class EventService(
             throw BusinessException(ErrorCode.INVALID_REQUEST, "1차 판매 시작 시간은 종료 시간보다 빨라야 합니다.")
         }
         if (command.resaleAllowed) {
-            val resaleStart = command.resaleStart ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 시작 시간이 필요합니다.")
-            val resaleEnd = command.resaleEnd ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 종료 시간이 필요합니다.")
-            if (!resaleStart.isBefore(resaleEnd)) {
-                throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 시작 시간은 종료 시간보다 빨라야 합니다.")
-            }
-            if (command.maxResalePriceRate < 10_000) {
-                throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 상한은 100% 이상이어야 합니다.")
-            }
+            validateResalePolicy(command.resaleAllowed, command.maxResalePriceRate, command.resaleStart, command.resaleEnd)
         }
         if (command.eventAt.isBefore(Instant.now().minusSeconds(60))) {
             throw BusinessException(ErrorCode.INVALID_REQUEST, "지난 이벤트는 등록할 수 없습니다.")
+        }
+    }
+
+    private fun validateResalePolicy(
+        resaleAllowed: Boolean,
+        maxResalePriceRate: Int,
+        resaleStart: Instant?,
+        resaleEnd: Instant?,
+    ) {
+        if (!resaleAllowed) return
+        val start = resaleStart ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 시작 시간이 필요합니다.")
+        val end = resaleEnd ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 종료 시간이 필요합니다.")
+        if (!start.isBefore(end)) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 시작 시간은 종료 시간보다 빨라야 합니다.")
+        }
+        if (maxResalePriceRate < 10_000) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 상한은 100% 이상이어야 합니다.")
         }
     }
 }
