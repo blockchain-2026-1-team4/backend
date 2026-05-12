@@ -12,5 +12,9 @@ interface ResaleListingRepository : JpaRepository<ResaleListingEntity, UUID> {
 
     fun findByTicketIdAndStatus(ticketId: UUID, status: ResaleListingStatus): ResaleListingEntity?
 
+    fun findAllByStatusNot(status: ResaleListingStatus, pageable: Pageable): Page<ResaleListingEntity>
+
+    fun findAllBySellerId(sellerId: UUID, pageable: Pageable): Page<ResaleListingEntity>
+
     fun countByStatus(status: ResaleListingStatus): Long
 }
