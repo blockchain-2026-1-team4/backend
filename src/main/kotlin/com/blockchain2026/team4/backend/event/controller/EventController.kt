@@ -4,9 +4,12 @@ import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.common.security.AuthPrincipal
 import com.blockchain2026.team4.backend.common.security.CurrentUser
 import com.blockchain2026.team4.backend.event.controller.request.EventCreateRequest
+import com.blockchain2026.team4.backend.event.controller.request.EventResalePolicyRequest
 import com.blockchain2026.team4.backend.event.controller.request.EventStatusRequest
 import com.blockchain2026.team4.backend.event.controller.request.EventUpdateRequest
+import com.blockchain2026.team4.backend.event.controller.request.EventValidatorRequest
 import com.blockchain2026.team4.backend.event.controller.response.EventResponse
+import com.blockchain2026.team4.backend.event.controller.response.EventValidatorResponse
 import com.blockchain2026.team4.backend.event.entity.EventStatus
 import com.blockchain2026.team4.backend.event.facade.EventFacade
 import io.swagger.v3.oas.annotations.Operation
@@ -37,7 +40,9 @@ class EventController(
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
         @RequestParam(required = false) status: EventStatus?,
-    ): PageResponse<EventResponse> = eventFacade.list(page, size, status)
+        @RequestParam(required = false) category: String?,
+        @RequestParam(required = false) query: String?,
+    ): PageResponse<EventResponse> = eventFacade.list(page, size, status, category, query)
 
     @Operation(summary = "이벤트 상세 조회", description = "이벤트 메타데이터와 판매/리셀 정책을 조회합니다.")
     @GetMapping("/{eventId}")
@@ -77,6 +82,29 @@ class EventController(
         @PathVariable eventId: UUID,
         @Valid @RequestBody request: EventStatusRequest,
     ): EventResponse = eventFacade.changeStatus(principal.userId, eventId, request)
+
+    @Operation(summary = "리셀 정책 수정", description = "주최자가 이벤트의 리셀 허용 여부, 가격 상한, 리셀 기간을 별도로 수정합니다.")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    @PatchMapping("/{eventId}/resale-policy")
+    fun updateResalePolicy(
+        @CurrentUser principal: AuthPrincipal,
+        @PathVariable eventId: UUID,
+        @Valid @RequestBody request: EventResalePolicyRequest,
+    ): EventResponse = eventFacade.updateResalePolicy(principal.userId, eventId, request)
+
+    @Operation(summary = "체크인 검증자 등록", description = "주최자 또는 관리자가 특정 이벤트의 현장 체크인 검증자를 등록합니다.")
+    @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')")
+    @PostMapping("/{eventId}/validators")
+    fun addValidator(
+        @CurrentUser principal: AuthPrincipal,
+        @PathVariable eventId: UUID,
+        @Valid @RequestBody request: EventValidatorRequest,
+    ): EventValidatorResponse = eventFacade.addValidator(principal.userId, eventId, request)
+
+    @Operation(summary = "체크인 검증자 목록", description = "특정 이벤트에 등록된 체크인 검증자 목록을 조회합니다.")
+    @PreAuthorize("hasAnyRole('ORGANIZER','ADMIN')")
+    @GetMapping("/{eventId}/validators")
+    fun listValidators(@PathVariable eventId: UUID): List<EventValidatorResponse> = eventFacade.listValidators(eventId)
 
     @Operation(summary = "이벤트 이미지 업로드", description = "로컬 이미지 디렉터리에 이벤트 이미지를 저장하고 이벤트 이미지 URL을 갱신합니다.")
     @PreAuthorize("hasRole('ORGANIZER')")
