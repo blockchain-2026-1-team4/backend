@@ -5,6 +5,7 @@ import com.blockchain2026.team4.backend.blockchain.dto.ContractEventCommand
 import com.blockchain2026.team4.backend.blockchain.entity.BlockchainTransactionStatus
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
+import org.web3j.crypto.Hash
 import java.math.BigInteger
 import java.util.UUID
 
@@ -12,6 +13,8 @@ import java.util.UUID
 @ConditionalOnProperty(prefix = "app.blockchain", name = ["enabled"], havingValue = "false", matchIfMissing = true)
 class NoopTrustTicketGateway : TrustTicketGateway {
     override fun addOrganizer(organizerWallet: String): BlockchainSubmission = simulated("addOrganizer")
+
+    override fun addValidator(validatorWallet: String): BlockchainSubmission = simulated("addValidator")
 
     override fun addEventValidator(contractEventId: BigInteger, validatorWallet: String): BlockchainSubmission = simulated("addEventValidator")
 
@@ -37,6 +40,12 @@ class NoopTrustTicketGateway : TrustTicketGateway {
         expiresAtEpochSeconds: BigInteger,
         signature: String,
     ): Boolean = true
+
+    override fun getTicketCheckInMessageHash(
+        contractTokenId: BigInteger,
+        claimedOwner: String,
+        expiresAtEpochSeconds: BigInteger,
+    ): String = Hash.sha3String("${contractTokenId}:${claimedOwner.lowercase()}:$expiresAtEpochSeconds")
 
     private fun simulated(action: String): BlockchainSubmission =
         BlockchainSubmission(
