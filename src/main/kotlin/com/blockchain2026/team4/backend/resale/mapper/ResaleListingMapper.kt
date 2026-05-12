@@ -10,5 +10,8 @@ interface ResaleListingMapper {
     @Mapping(source = "ticket.id", target = "ticketId")
     @Mapping(source = "ticket.event.id", target = "eventId")
     @Mapping(source = "seller.id", target = "sellerId")
+    @Mapping(source = "buyer.id", target = "buyerId")
     fun toDto(entity: ResaleListingEntity): ResaleListingDto
+
+    fun toDtos(entities: List<ResaleListingEntity>): List<ResaleListingDto>
 }
