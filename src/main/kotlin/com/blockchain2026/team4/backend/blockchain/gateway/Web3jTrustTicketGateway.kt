@@ -37,6 +37,9 @@ class Web3jTrustTicketGateway(
     override fun addOrganizer(organizerWallet: String): BlockchainSubmission =
         send("addOrganizer", listOf(Address(organizerWallet)))
 
+    override fun addValidator(validatorWallet: String): BlockchainSubmission =
+        send("addValidator", listOf(Address(validatorWallet)))
+
     override fun addEventValidator(contractEventId: BigInteger, validatorWallet: String): BlockchainSubmission =
         send("addEventValidator", listOf(Uint256(contractEventId), Address(validatorWallet)))
 
@@ -95,6 +98,25 @@ class Web3jTrustTicketGateway(
         ).send()
         val decoded = FunctionReturnDecoder.decode(response.value, function.outputParameters)
         return decoded.firstOrNull()?.value as? Boolean ?: false
+    }
+
+    override fun getTicketCheckInMessageHash(
+        contractTokenId: BigInteger,
+        claimedOwner: String,
+        expiresAtEpochSeconds: BigInteger,
+    ): String {
+        val function = Function(
+            "getTicketCheckInMessageHash",
+            listOf(Uint256(contractTokenId), Address(claimedOwner), Uint256(expiresAtEpochSeconds)),
+            listOf(object : TypeReference<org.web3j.abi.datatypes.generated.Bytes32>() {}),
+        )
+        val response = web3j.ethCall(
+            Transaction.createEthCallTransaction(credentials.address, appProperties.blockchain.contractAddress, FunctionEncoder.encode(function)),
+            DefaultBlockParameterName.LATEST,
+        ).send()
+        val decoded = FunctionReturnDecoder.decode(response.value, function.outputParameters)
+        val bytes = decoded.firstOrNull()?.value as? ByteArray ?: return "0x"
+        return "0x${bytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }}"
     }
 
     private fun send(action: String, inputs: List<Type<*>>, valueWei: BigInteger = BigInteger.ZERO): BlockchainSubmission {
