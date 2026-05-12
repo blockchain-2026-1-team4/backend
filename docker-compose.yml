@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: blockchain-backend-postgres
+    environment:
+      POSTGRES_DB: blockchain_backend
+      POSTGRES_USER: blockchain
+      POSTGRES_PASSWORD: blockchain
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockchain -d blockchain_backend"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:stable
+    container_name: blockchain-backend-anvil
+    command: ["anvil", "--host", "0.0.0.0", "--chain-id", "31337"]
+    ports:
+      - "8545:8545"
+    profiles:
+      - chain
+
+volumes:
+  postgres-data:
