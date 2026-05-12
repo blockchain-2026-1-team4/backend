@@ -172,6 +172,75 @@ Error responses are also standardized:
 }
 ```
 
+## API Overview
+
+Authentication:
+
+```text
+POST /api/v1/auth/wallet/nonce
+POST /api/v1/auth/wallet/login
+POST /api/v1/auth/email/register
+POST /api/v1/auth/email/login
+```
+
+Users:
+
+```text
+GET   /api/v1/users/me
+PATCH /api/v1/users/me
+GET   /api/v1/users
+PATCH /api/v1/users/{userId}/suspend
+PATCH /api/v1/users/{userId}/activate
+```
+
+Organizer approval:
+
+```text
+POST  /api/v1/organizer-applications
+GET   /api/v1/organizer-applications/me
+GET   /api/v1/organizer-applications
+PATCH /api/v1/organizer-applications/{applicationId}/review
+```
+
+Events and tickets:
+
+```text
+GET   /api/v1/events
+GET   /api/v1/events/{eventId}
+GET   /api/v1/events/me
+POST  /api/v1/events
+PATCH /api/v1/events/{eventId}
+PATCH /api/v1/events/{eventId}/status
+POST  /api/v1/events/{eventId}/image
+POST  /api/v1/events/{eventId}/tickets
+GET   /api/v1/events/{eventId}/tickets
+GET   /api/v1/tickets/me
+GET   /api/v1/tickets/{ticketId}
+POST  /api/v1/tickets/{ticketId}/purchase
+```
+
+Resale and check-in:
+
+```text
+GET   /api/v1/resale-listings
+GET   /api/v1/resale-listings/{listingId}
+POST  /api/v1/tickets/{ticketId}/resale-listing
+POST  /api/v1/resale-listings/{listingId}/purchase
+PATCH /api/v1/resale-listings/{listingId}/cancel
+POST  /api/v1/tickets/{ticketId}/qr
+POST  /api/v1/check-ins
+GET   /api/v1/tickets/{ticketId}/check-ins
+```
+
+Admin:
+
+```text
+GET /api/v1/admin/dashboard
+GET /api/v1/admin/blockchain-transactions
+```
+
+Detailed Korean endpoint descriptions are available in Swagger UI.
+
 ## Build And Test
 
 Compile:
@@ -191,6 +260,8 @@ Full verification:
 ```bash
 ./gradlew clean test
 ```
+
+Tests use the `test` Spring profile with H2 in PostgreSQL compatibility mode. Local application runtime still uses PostgreSQL from Docker Compose.
 
 ## Commit Rules
 
