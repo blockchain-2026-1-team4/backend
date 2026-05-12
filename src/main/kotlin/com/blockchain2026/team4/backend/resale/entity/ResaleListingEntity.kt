@@ -32,6 +32,10 @@ class ResaleListingEntity(
     @JoinColumn(name = "seller_id", nullable = false)
     var seller: UserEntity,
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buyer_id")
+    var buyer: UserEntity? = null,
+
     @Column(name = "price_wei", nullable = false, precision = 78, scale = 0)
     var priceWei: BigInteger,
 
@@ -44,6 +48,9 @@ class ResaleListingEntity(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),
+
+    @Column(name = "purchased_at")
+    var purchasedAt: Instant? = null,
 ) {
     @PrePersist
     fun prePersist() {
