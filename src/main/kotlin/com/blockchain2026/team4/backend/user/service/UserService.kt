@@ -1,5 +1,7 @@
 package com.blockchain2026.team4.backend.user.service
 
+import com.blockchain2026.team4.backend.blockchain.gateway.TrustTicketGateway
+import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransactionService
 import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
@@ -18,6 +20,8 @@ import java.util.UUID
 @Service
 class UserService(
     private val userRepository: UserRepository,
+    private val trustTicketGateway: TrustTicketGateway,
+    private val blockchainTransactionService: BlockchainTransactionService,
     private val userMapper: UserMapper,
 ) {
     @Transactional(readOnly = true)
@@ -97,6 +101,24 @@ class UserService(
     fun activate(userId: UUID): UserDto {
         val entity = findEntity(userId)
         entity.status = UserStatus.ACTIVE
+        return userMapper.toDto(entity)
+    }
+
+    @Transactional
+    fun delete(userId: UUID): UserDto {
+        val entity = findEntity(userId)
+        entity.status = UserStatus.DELETED
+        return userMapper.toDto(entity)
+    }
+
+    @Transactional
+    fun grantValidator(userId: UUID): UserDto {
+        val entity = findEntity(userId)
+        entity.roles.add(UserRole.VALIDATOR)
+        entity.walletAddress?.let {
+            val submission = trustTicketGateway.addValidator(it)
+            blockchainTransactionService.record(submission)
+        }
         return userMapper.toDto(entity)
     }
 
