@@ -1,0 +1,156 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-events-operational-state
+      author: codex
+      changes:
+        - addColumn:
+            tableName: events
+            columns:
+              - column:
+                  name: remaining_ticket_count
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sold_ticket_count
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: flagged
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+        - update:
+            tableName: events
+            columns:
+              - column:
+                  name: remaining_ticket_count
+                  valueComputed: total_ticket_count
+              - column:
+                  name: sold_ticket_count
+                  valueNumeric: 0
+
+  - changeSet:
+      id: 003-resale-transaction-audit
+      author: codex
+      changes:
+        - addColumn:
+            tableName: resale_listings
+            columns:
+              - column:
+                  name: buyer_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_resale_listings_buyer
+                    references: users(id)
+              - column:
+                  name: purchased_at
+                  type: timestamp with time zone
+
+  - changeSet:
+      id: 004-event-validators
+      author: codex
+      changes:
+        - createTable:
+            tableName: event_validators
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: event_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_event_validators_event
+                    references: events(id)
+              - column:
+                  name: validator_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_event_validators_user
+                    references: users(id)
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: event_validators
+            columnNames: event_id, validator_id
+            constraintName: uk_event_validators_event_user
+
+  - changeSet:
+      id: 005-disputes
+      author: codex
+      changes:
+        - createTable:
+            tableName: disputes
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: reporter_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_disputes_reporter
+                    references: users(id)
+              - column:
+                  name: resale_listing_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_disputes_resale_listing
+                    references: resale_listings(id)
+              - column:
+                  name: ticket_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_disputes_ticket
+                    references: tickets(id)
+              - column:
+                  name: type
+                  type: varchar(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: resolution_note
+                  type: text
+              - column:
+                  name: reviewed_by
+                  type: uuid
+              - column:
+                  name: reviewed_at
+                  type: timestamp with time zone
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
