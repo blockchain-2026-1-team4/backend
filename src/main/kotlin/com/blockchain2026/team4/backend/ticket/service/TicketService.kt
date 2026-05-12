@@ -8,6 +8,7 @@ import com.blockchain2026.team4.backend.event.entity.EventStatus
 import com.blockchain2026.team4.backend.event.service.EventService
 import com.blockchain2026.team4.backend.ticket.dto.TicketDto
 import com.blockchain2026.team4.backend.ticket.dto.TicketIssueCommand
+import com.blockchain2026.team4.backend.ticket.dto.TicketValidityDto
 import com.blockchain2026.team4.backend.ticket.entity.TicketEntity
 import com.blockchain2026.team4.backend.ticket.entity.TicketStatus
 import com.blockchain2026.team4.backend.ticket.mapper.TicketMapper
@@ -78,6 +79,7 @@ class TicketService(
         }
         ticket.owner = user
         ticket.status = TicketStatus.SOLD
+        eventService.registerPrimarySale(event)
         return ticketMapper.toDto(ticket)
     }
 
@@ -89,6 +91,24 @@ class TicketService(
 
     @Transactional(readOnly = true)
     fun listMine(userId: UUID): List<TicketDto> = ticketMapper.toDtos(ticketRepository.findAllByOwnerId(userId))
+
+    @Transactional(readOnly = true)
+    fun listByOwnerWallet(walletAddress: String): List<TicketDto> =
+        ticketMapper.toDtos(ticketRepository.findAllByOwnerWalletAddressIgnoreCase(walletAddress.normalizeWallet()))
+
+    @Transactional(readOnly = true)
+    fun validity(ticketId: UUID): TicketValidityDto {
+        val ticket = findEntity(ticketId)
+        val valid = ticket.event.status == EventStatus.ACTIVE && ticket.owner != null && ticket.status in setOf(TicketStatus.SOLD, TicketStatus.LISTED)
+        val reason = when {
+            ticket.event.status != EventStatus.ACTIVE -> "이벤트가 비활성 상태입니다."
+            ticket.owner == null -> "아직 판매되지 않은 티켓입니다."
+            ticket.status == TicketStatus.USED -> "이미 사용 완료된 티켓입니다."
+            ticket.status !in setOf(TicketStatus.SOLD, TicketStatus.LISTED) -> "유효한 소유 상태가 아닙니다."
+            else -> null
+        }
+        return TicketValidityDto(ticket.id, contractTokenId(ticket), valid, reason)
+    }
 
     @Transactional
     fun markListed(ticket: TicketEntity): TicketEntity {
@@ -130,4 +150,6 @@ class TicketService(
 
     fun contractTokenId(ticket: TicketEntity): BigInteger =
         ticket.contractTokenId ?: BigInteger.valueOf(ticket.id.mostSignificantBits and Long.MAX_VALUE)
+
+    private fun String.normalizeWallet(): String = trim().lowercase()
 }
