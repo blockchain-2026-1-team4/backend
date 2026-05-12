@@ -9,6 +9,7 @@ data class TicketDto(
     val id: UUID,
     val eventId: UUID,
     val ownerId: UUID?,
+    val ownerWalletAddress: String?,
     val contractTokenId: BigInteger?,
     val seatInfo: String,
     val originalPriceWei: BigInteger,
@@ -16,4 +17,11 @@ data class TicketDto(
     val usedAt: Instant?,
     val createdAt: Instant,
     val updatedAt: Instant,
+)
+
+data class TicketValidityDto(
+    val ticketId: UUID,
+    val contractTokenId: BigInteger,
+    val valid: Boolean,
+    val reason: String?,
 )
