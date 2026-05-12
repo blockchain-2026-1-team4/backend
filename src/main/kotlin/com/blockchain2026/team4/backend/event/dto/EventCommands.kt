@@ -30,6 +30,13 @@ data class EventUpdateCommand(
     val eventAt: Instant?,
 )
 
+data class EventResalePolicyCommand(
+    val resaleAllowed: Boolean,
+    val maxResalePriceRate: Int,
+    val resaleStart: Instant?,
+    val resaleEnd: Instant?,
+)
+
 data class EventStatusCommand(
     val status: EventStatus,
 )
