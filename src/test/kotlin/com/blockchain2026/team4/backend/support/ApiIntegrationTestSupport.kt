@@ -44,9 +44,11 @@ abstract class ApiIntegrationTestSupport {
     @BeforeEach
     fun resetDatabase() {
         listOf(
+            "disputes",
             "check_in_records",
             "resale_listings",
             "tickets",
+            "event_validators",
             "events",
             "organizer_applications",
             "blockchain_transactions",
