@@ -54,6 +54,12 @@ class EventEntity(
     @Column(name = "total_ticket_count", nullable = false)
     var totalTicketCount: Int,
 
+    @Column(name = "remaining_ticket_count", nullable = false)
+    var remainingTicketCount: Int = totalTicketCount,
+
+    @Column(name = "sold_ticket_count", nullable = false)
+    var soldTicketCount: Int = 0,
+
     @Column(name = "primary_sale_start", nullable = false)
     var primarySaleStart: Instant,
 
@@ -71,6 +77,9 @@ class EventEntity(
 
     @Column(name = "resale_end")
     var resaleEnd: Instant?,
+
+    @Column(name = "flagged", nullable = false)
+    var flagged: Boolean = false,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
