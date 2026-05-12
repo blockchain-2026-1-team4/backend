@@ -7,6 +7,8 @@ import java.math.BigInteger
 interface TrustTicketGateway {
     fun addOrganizer(organizerWallet: String): BlockchainSubmission
 
+    fun addValidator(validatorWallet: String): BlockchainSubmission
+
     fun addEventValidator(contractEventId: BigInteger, validatorWallet: String): BlockchainSubmission
 
     fun createEvent(command: ContractEventCommand): BlockchainSubmission
@@ -31,4 +33,10 @@ interface TrustTicketGateway {
         expiresAtEpochSeconds: BigInteger,
         signature: String,
     ): Boolean
+
+    fun getTicketCheckInMessageHash(
+        contractTokenId: BigInteger,
+        claimedOwner: String,
+        expiresAtEpochSeconds: BigInteger,
+    ): String
 }
