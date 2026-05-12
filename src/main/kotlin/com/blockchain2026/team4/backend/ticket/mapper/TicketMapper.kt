@@ -9,6 +9,7 @@ import org.mapstruct.Mapping
 interface TicketMapper {
     @Mapping(source = "event.id", target = "eventId")
     @Mapping(source = "owner.id", target = "ownerId")
+    @Mapping(source = "owner.walletAddress", target = "ownerWalletAddress")
     fun toDto(entity: TicketEntity): TicketDto
 
     fun toDtos(entities: List<TicketEntity>): List<TicketDto>
