@@ -64,6 +64,17 @@ Shared infrastructure belongs under `common/`. Blockchain adapter code belongs u
 - Keep Swagger text brief, compact, and explanatory.
 - Prefer RESTful resource paths under `/api/v1`.
 
+## API Testing Standards
+
+- Every API endpoint must have high-level integration test coverage.
+- API tests should exercise the real HTTP boundary with MockMvc or an equivalent Spring test client.
+- Tests must verify standardized success envelopes, standardized error envelopes, authentication/authorization behavior, and meaningful business outcomes.
+- When adding or changing an API, add or update tests in the same work session before committing the API change.
+- Always run `./gradlew test` after API changes and before pushing.
+- Do not push API changes if tests are failing.
+- Prefer expressive flow tests that mirror product use cases over brittle implementation-level tests.
+- Keep reusable test setup in dedicated test support classes instead of duplicating token/user/request boilerplate.
+
 ## Database Standards
 
 - PostgreSQL is the local and default database.
