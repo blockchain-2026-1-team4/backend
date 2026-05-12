@@ -35,4 +35,8 @@ class UserFacade(
     fun suspend(userId: UUID): UserResponse = userApiMapper.toResponse(userService.suspend(userId))
 
     fun activate(userId: UUID): UserResponse = userApiMapper.toResponse(userService.activate(userId))
+
+    fun delete(userId: UUID): UserResponse = userApiMapper.toResponse(userService.delete(userId))
+
+    fun grantValidator(userId: UUID): UserResponse = userApiMapper.toResponse(userService.grantValidator(userId))
 }
