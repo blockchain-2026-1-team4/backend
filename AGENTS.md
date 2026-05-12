@@ -71,6 +71,7 @@ Shared infrastructure belongs under `common/`. Blockchain adapter code belongs u
 - Liquibase is the source of truth for ERD/table changes.
 - Do not rely on Hibernate DDL generation except `ddl-auto: validate`.
 - Every table/index/constraint change must be represented in a Liquibase changelog.
+- Tests may use H2 in PostgreSQL compatibility mode through the `test` profile, but runtime behavior should be checked against PostgreSQL when database behavior matters.
 
 ## Blockchain Standards
 
@@ -120,3 +121,4 @@ The user explicitly requires highly sharded commits.
 - If the worktree is dirty, inspect it and work around unrelated changes.
 - Prefer implementing requested changes end to end, then verify with build/tests.
 - Mention any verification that could not be run.
+- If new APIs are added, update the API overview in `README.md`.
