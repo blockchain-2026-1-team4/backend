@@ -65,3 +65,19 @@ data class EventUpdateRequest(
 data class EventStatusRequest(
     val status: EventStatus,
 )
+
+data class EventResalePolicyRequest(
+    val resaleAllowed: Boolean,
+
+    @field:Min(10_000)
+    val maxResalePriceRate: Int,
+
+    val resaleStart: Instant?,
+
+    val resaleEnd: Instant?,
+)
+
+data class EventValidatorRequest(
+    @field:NotNull
+    val userId: java.util.UUID,
+)
