@@ -55,4 +55,14 @@ class UserController(
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{userId}/activate")
     fun activate(@PathVariable userId: UUID): UserResponse = userFacade.activate(userId)
+
+    @Operation(summary = "사용자 삭제", description = "관리자가 사용자를 삭제 상태로 전환합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/delete")
+    fun delete(@PathVariable userId: UUID): UserResponse = userFacade.delete(userId)
+
+    @Operation(summary = "전역 검증자 권한 부여", description = "관리자가 사용자에게 전체 이벤트 체크인 검증자 권한을 부여하고 컨트랙트 권한 등록을 요청합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/validator")
+    fun grantValidator(@PathVariable userId: UUID): UserResponse = userFacade.grantValidator(userId)
 }
