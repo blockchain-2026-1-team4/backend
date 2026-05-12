@@ -43,11 +43,12 @@ Entities must not leave the service layer. Controllers and facades should never 
 auth          wallet login, email login, JWT issuance
 user          user profiles, roles, admin user management
 organizer     organizer applications and approvals
-event         event metadata, image URL, sales policy
+event         event metadata, image URL, sales policy, event validators
 ticket        ticket issuance, purchase, ownership projection
-resale        official resale listings and purchases
-checkin       QR generation, verification, check-in records
-admin         dashboard and operational summaries
+resale        official resale listings, purchases, transaction history
+checkin       QR/barcode generation, signing hash lookup, verification, check-in records
+dispute       resale/ticket dispute reports and review workflow
+admin         dashboard, event supervision, users, disputes, operational summaries
 blockchain    TrustTicket contract gateway and transaction log
 common        shared API envelope, error handling, security, config
 ```
@@ -191,6 +192,8 @@ PATCH /api/v1/users/me
 GET   /api/v1/users
 PATCH /api/v1/users/{userId}/suspend
 PATCH /api/v1/users/{userId}/activate
+PATCH /api/v1/users/{userId}/delete
+PATCH /api/v1/users/{userId}/validator
 ```
 
 Organizer approval:
@@ -211,11 +214,16 @@ GET   /api/v1/events/me
 POST  /api/v1/events
 PATCH /api/v1/events/{eventId}
 PATCH /api/v1/events/{eventId}/status
+PATCH /api/v1/events/{eventId}/resale-policy
 POST  /api/v1/events/{eventId}/image
+POST  /api/v1/events/{eventId}/validators
+GET   /api/v1/events/{eventId}/validators
 POST  /api/v1/events/{eventId}/tickets
 GET   /api/v1/events/{eventId}/tickets
 GET   /api/v1/tickets/me
 GET   /api/v1/tickets/{ticketId}
+GET   /api/v1/tickets/{ticketId}/validity
+GET   /api/v1/wallets/{walletAddress}/tickets
 POST  /api/v1/tickets/{ticketId}/purchase
 ```
 
@@ -228,15 +236,24 @@ POST  /api/v1/tickets/{ticketId}/resale-listing
 POST  /api/v1/resale-listings/{listingId}/purchase
 PATCH /api/v1/resale-listings/{listingId}/cancel
 POST  /api/v1/tickets/{ticketId}/qr
+GET   /api/v1/tickets/{ticketId}/check-in-message
 POST  /api/v1/check-ins
 GET   /api/v1/tickets/{ticketId}/check-ins
+POST  /api/v1/disputes
+GET   /api/v1/disputes/me
 ```
 
 Admin:
 
 ```text
-GET /api/v1/admin/dashboard
-GET /api/v1/admin/blockchain-transactions
+GET   /api/v1/admin/dashboard
+GET   /api/v1/admin/blockchain-transactions
+GET   /api/v1/admin/events
+PATCH /api/v1/admin/events/{eventId}/flag
+PATCH /api/v1/admin/events/{eventId}/unflag
+GET   /api/v1/admin/resale-transactions
+GET   /api/v1/admin/disputes
+PATCH /api/v1/admin/disputes/{disputeId}/review
 ```
 
 Detailed Korean endpoint descriptions are available in Swagger UI.
