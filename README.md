@@ -92,6 +92,12 @@ user: blockchain
 password: blockchain
 ```
 
+Docker Compose uses an explicit project name and volume name so it does not share the `postgres-data` volume with other `Backend` folders. If host ports conflict, override them:
+
+```bash
+BLOCKCHAIN_POSTGRES_PORT=55432 BLOCKCHAIN_ANVIL_PORT=18545 docker compose up -d
+```
+
 ## Configuration
 
 Main config lives in `src/main/resources/application.yml`.
@@ -102,6 +108,8 @@ Important environment variables:
 JWT_SECRET
 IMAGE_DIRECTORY
 IMAGE_PUBLIC_URL_PREFIX
+BLOCKCHAIN_POSTGRES_PORT
+BLOCKCHAIN_ANVIL_PORT
 BLOCKCHAIN_RPC_URL
 BLOCKCHAIN_CHAIN_ID
 TRUST_TICKET_CONTRACT_ADDRESS
