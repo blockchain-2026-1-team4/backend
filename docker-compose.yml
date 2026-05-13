@@ -1,3 +1,5 @@
+name: blockchain-ticket-backend
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -7,7 +9,7 @@ services:
       POSTGRES_USER: blockchain
       POSTGRES_PASSWORD: blockchain
     ports:
-      - "5432:5432"
+      - "${BLOCKCHAIN_POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -21,9 +23,10 @@ services:
     container_name: blockchain-backend-anvil
     command: ["anvil", "--host", "0.0.0.0", "--chain-id", "31337"]
     ports:
-      - "8545:8545"
+      - "${BLOCKCHAIN_ANVIL_PORT:-8545}:8545"
     profiles:
       - chain
 
 volumes:
   postgres-data:
+    name: blockchain-ticket-backend-postgres-data
