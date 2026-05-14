@@ -3,10 +3,12 @@ package com.blockchain2026.team4.backend.common.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.math.BigInteger
 import java.time.Duration
+import java.util.UUID
 
 @ConfigurationProperties(prefix = "app")
 data class AppProperties(
     val jwt: Jwt = Jwt(),
+    val devAuth: DevAuth = DevAuth(),
     val errors: Errors = Errors(),
     val storage: Storage = Storage(),
     val blockchain: Blockchain = Blockchain(),
@@ -23,6 +25,15 @@ data class AppProperties(
         val refreshTokenTtl: Duration
             get() = Duration.ofDays(refreshTokenExpirationDays)
     }
+
+    data class DevAuth(
+        val enabled: Boolean = false,
+        val token: String = "",
+        val userId: UUID = UUID.fromString("00000000-0000-0000-0000-000000000004"),
+        val walletAddress: String = "0x0000000000000000000000000000000000000004",
+        val email: String = "dev-admin@local.test",
+        val displayName: String = "Local Dev Super Admin",
+    )
 
     data class Errors(
         val includeStackTrace: Boolean = true,
