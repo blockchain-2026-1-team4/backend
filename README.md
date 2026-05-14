@@ -106,6 +106,12 @@ Important environment variables:
 
 ```text
 JWT_SECRET
+DEV_AUTH_ENABLED
+DEV_ADMIN_TOKEN
+DEV_ADMIN_USER_ID
+DEV_ADMIN_WALLET_ADDRESS
+DEV_ADMIN_EMAIL
+DEV_ADMIN_DISPLAY_NAME
 IMAGE_DIRECTORY
 IMAGE_PUBLIC_URL_PREFIX
 BLOCKCHAIN_POSTGRES_PORT
@@ -117,6 +123,30 @@ BLOCKCHAIN_OPERATOR_PRIVATE_KEY
 BLOCKCHAIN_GAS_PRICE_WEI
 BLOCKCHAIN_GAS_LIMIT
 ```
+
+## Local Dev Admin Token
+
+For local API testing, enable the static dev token and use it as a bearer token in Swagger or Postman:
+
+```bash
+DEV_AUTH_ENABLED=true DEV_ADMIN_TOKEN=local-dev-super-token ./gradlew bootRun
+```
+
+```http
+Authorization: Bearer local-dev-super-token
+```
+
+When enabled, the backend creates or refreshes a local dev user with all roles: `USER`, `ORGANIZER`, `ADMIN`, and `VALIDATOR`.
+
+Default dev user values:
+
+```text
+id: 00000000-0000-0000-0000-000000000004
+email: dev-admin@local.test
+wallet: 0x0000000000000000000000000000000000000004
+```
+
+This feature is disabled by default and should stay disabled outside local development.
 
 Blockchain submission is disabled by default:
 
