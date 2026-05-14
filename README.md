@@ -148,6 +148,75 @@ wallet: 0x0000000000000000000000000000000000000004
 
 This feature is disabled by default and should stay disabled outside local development.
 
+## Account And Role Flows
+
+Accounts are created as normal `USER` accounts first. Elevated roles are granted through approval or admin operations, and the user must log in again after a role change because JWT access tokens contain the roles available at the time the token was issued.
+
+User creation:
+
+```text
+Wallet login:
+POST /api/v1/auth/wallet/nonce
+POST /api/v1/auth/wallet/login
+
+Email signup/login:
+POST /api/v1/auth/email/register
+POST /api/v1/auth/email/login
+```
+
+Both wallet login and email signup create a `USER` account only.
+
+Organizer promotion:
+
+```text
+1. User submits organizer application:
+   POST /api/v1/organizer-applications
+
+2. Admin reviews the application:
+   PATCH /api/v1/organizer-applications/{applicationId}/review
+
+3. If the review status is APPROVED, the backend grants ORGANIZER.
+```
+
+If the approved user has a wallet address, the backend also submits or simulates the `addOrganizer` blockchain operation.
+
+Validator promotion:
+
+```text
+PATCH /api/v1/users/{userId}/validator
+```
+
+Only an admin can grant the global `VALIDATOR` role. If the user has a wallet address, the backend also submits or simulates the `addValidator` blockchain operation.
+
+Event-specific validator assignment:
+
+```text
+POST /api/v1/events/{eventId}/validators
+```
+
+The event organizer or an admin can assign a user as a validator for one event. This allows check-in for that event even if the user does not have the global `VALIDATOR` role.
+
+Admin accounts:
+
+```text
+Local development:
+DEV_AUTH_ENABLED=true DEV_ADMIN_TOKEN=local-dev-super-token ./gradlew bootRun
+
+Production:
+seed or grant the first admin through a controlled bootstrap path before opening the service.
+```
+
+The normal public signup APIs do not create admin accounts.
+
+Token refresh after role changes:
+
+```text
+1. User logs in and receives token with current roles.
+2. Admin approves/promotes the user.
+3. User logs in again.
+4. New token contains the new ORGANIZER, ADMIN, or VALIDATOR role.
+```
+
 Blockchain submission is disabled by default:
 
 ```yaml
