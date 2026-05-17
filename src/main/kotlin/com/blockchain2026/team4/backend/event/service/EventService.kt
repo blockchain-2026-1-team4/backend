@@ -21,7 +21,9 @@ import com.blockchain2026.team4.backend.event.repository.EventRepository
 import com.blockchain2026.team4.backend.event.repository.EventValidatorRepository
 import com.blockchain2026.team4.backend.user.entity.UserRole
 import com.blockchain2026.team4.backend.user.service.UserService
+import jakarta.persistence.criteria.Predicate
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.jpa.domain.Specification
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigInteger
@@ -90,13 +92,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun list(page: Int, size: Int, status: EventStatus?, category: String?, query: String?, flagged: Boolean? = null): PageResponse<EventDto> {
         val pageable = PageRequest.of(page, size)
-        val events = eventRepository.search(
-            status = status,
-            category = category?.takeIf { it.isNotBlank() },
-            query = query?.takeIf { it.isNotBlank() },
-            flagged = flagged,
-            pageable = pageable,
-        )
+        val events = eventRepository.findAll(eventSearchSpec(status, category, query, flagged), pageable)
         return PageResponse(
             items = events.content.map(eventMapper::toDto),
             page = events.number,
@@ -106,6 +102,46 @@ class EventService(
             hasNext = events.hasNext(),
         )
     }
+
+    private fun eventSearchSpec(
+        status: EventStatus?,
+        category: String?,
+        query: String?,
+        flagged: Boolean?,
+    ): Specification<EventEntity> =
+        Specification { root, _, criteriaBuilder ->
+            val predicates = mutableListOf<Predicate>()
+
+            status?.let {
+                predicates += criteriaBuilder.equal(root.get<EventStatus>("status"), it)
+            }
+
+            flagged?.let {
+                predicates += criteriaBuilder.equal(root.get<Boolean>("flagged"), it)
+            }
+
+            category?.trim()?.takeIf { it.isNotBlank() }?.let {
+                predicates += criteriaBuilder.equal(
+                    criteriaBuilder.lower(root.get("category")),
+                    it.lowercase(),
+                )
+            }
+
+            query?.trim()?.takeIf { it.isNotBlank() }?.let {
+                val pattern = "%${it.lowercase()}%"
+                predicates += criteriaBuilder.or(
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern),
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), pattern),
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("venue")), pattern),
+                )
+            }
+
+            if (predicates.isEmpty()) {
+                criteriaBuilder.conjunction()
+            } else {
+                criteriaBuilder.and(*predicates.toTypedArray())
+            }
+        }
 
     @Transactional(readOnly = true)
     fun listByOrganizer(organizerId: UUID, page: Int, size: Int): PageResponse<EventDto> {

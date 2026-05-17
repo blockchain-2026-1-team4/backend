@@ -32,6 +32,7 @@ data class AppProperties(
         val userId: UUID = UUID.fromString("00000000-0000-0000-0000-000000000004"),
         val walletAddress: String = "0x0000000000000000000000000000000000000004",
         val email: String = "dev-admin@local.test",
+        val password: String = "Admin1234!",
         val displayName: String = "Local Dev Super Admin",
     )
 

@@ -5,6 +5,7 @@ import com.blockchain2026.team4.backend.user.entity.UserEntity
 import com.blockchain2026.team4.backend.user.entity.UserRole
 import com.blockchain2026.team4.backend.user.entity.UserStatus
 import com.blockchain2026.team4.backend.user.repository.UserRepository
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.nio.charset.StandardCharsets
@@ -15,6 +16,8 @@ class DevAuthenticationService(
     private val appProperties: AppProperties,
     private val userRepository: UserRepository,
 ) {
+    private val passwordEncoder = BCryptPasswordEncoder()
+
     private val superRoles = setOf(
         UserRole.USER,
         UserRole.ORGANIZER,
@@ -41,11 +44,17 @@ class DevAuthenticationService(
 
     private fun ensureDevUser(): UserEntity {
         val devAuth = appProperties.devAuth
+        val email = devAuth.email.trim().lowercase()
         val user = userRepository.findById(devAuth.userId)
-            .orElseGet { UserEntity(id = devAuth.userId) }
+            .orElseGet {
+                userRepository.findByEmailIgnoreCase(email) ?: UserEntity(id = devAuth.userId)
+            }
 
         user.walletAddress = devAuth.walletAddress.normalizeWallet()
-        user.email = devAuth.email.trim().lowercase()
+        user.email = email
+        if (devAuth.password.isNotBlank() && !passwordEncoder.matches(devAuth.password, user.passwordHash ?: "")) {
+            user.passwordHash = passwordEncoder.encode(devAuth.password)
+        }
         user.displayName = devAuth.displayName.trim()
         user.status = UserStatus.ACTIVE
         user.roles = superRoles.toMutableSet()
