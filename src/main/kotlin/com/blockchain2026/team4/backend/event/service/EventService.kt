@@ -190,11 +190,20 @@ class EventService(
     fun changeStatus(actorId: UUID, eventId: UUID, command: EventStatusCommand): EventDto {
         val event = findEntity(eventId)
         val actor = userService.getUser(actorId)
-        if (actor.id != event.organizer.id && !actor.roles.contains(UserRole.ADMIN)) {
+        val isAdmin = actor.roles.contains(UserRole.ADMIN)
+        if (actor.id != event.organizer.id && !isAdmin) {
             throw BusinessException(ErrorCode.FORBIDDEN, "이벤트 상태 변경 권한이 없습니다.")
+        }
+        if (!isAdmin && event.adminCanceled && command.status != EventStatus.CANCELED) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.")
         }
 
         event.status = command.status
+        if (command.status == EventStatus.CANCELED) {
+            event.adminCanceled = event.adminCanceled || isAdmin
+        } else if (isAdmin) {
+            event.adminCanceled = false
+        }
         val active = command.status == EventStatus.ACTIVE
         event.contractEventId?.let {
             val submission = trustTicketGateway.setEventStatus(it, active)

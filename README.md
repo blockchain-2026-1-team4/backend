@@ -111,6 +111,7 @@ DEV_ADMIN_TOKEN
 DEV_ADMIN_USER_ID
 DEV_ADMIN_WALLET_ADDRESS
 DEV_ADMIN_EMAIL
+DEV_ADMIN_PASSWORD
 DEV_ADMIN_DISPLAY_NAME
 IMAGE_DIRECTORY
 IMAGE_PUBLIC_URL_PREFIX
@@ -124,19 +125,23 @@ BLOCKCHAIN_GAS_PRICE_WEI
 BLOCKCHAIN_GAS_LIMIT
 ```
 
-## Local Dev Admin Token
+## Local Dev Admin
 
-For local API testing, enable the static dev token and use it as a bearer token in Swagger or Postman:
+For local API and admin portal testing, the default local configuration creates or refreshes a development admin user on backend startup.
 
-```bash
-DEV_AUTH_ENABLED=true DEV_ADMIN_TOKEN=local-dev-super-token ./gradlew bootRun
+Default login credentials:
+
+```text
+email: dev-admin@local.test
+password: Admin1234!
+roles: USER, ORGANIZER, ADMIN, VALIDATOR
 ```
+
+The same account can also be used as a static bearer-token principal for Swagger or Postman:
 
 ```http
-Authorization: Bearer local-dev-super-token
+Authorization: Bearer local-dev-admin-token
 ```
-
-When enabled, the backend creates or refreshes a local dev user with all roles: `USER`, `ORGANIZER`, `ADMIN`, and `VALIDATOR`.
 
 Default dev user values:
 
@@ -146,7 +151,14 @@ email: dev-admin@local.test
 wallet: 0x0000000000000000000000000000000000000004
 ```
 
-This feature is disabled by default and should stay disabled outside local development.
+Override or disable it with environment variables:
+
+```bash
+DEV_AUTH_ENABLED=false ./gradlew bootRun
+DEV_ADMIN_EMAIL=admin@example.com DEV_ADMIN_PASSWORD=change-me ./gradlew bootRun
+```
+
+This feature is for local development only and should stay disabled outside local development or controlled test environments.
 
 ## Account And Role Flows
 
@@ -200,7 +212,7 @@ Admin accounts:
 
 ```text
 Local development:
-DEV_AUTH_ENABLED=true DEV_ADMIN_TOKEN=local-dev-super-token ./gradlew bootRun
+dev-admin@local.test / Admin1234!
 
 Production:
 seed or grant the first admin through a controlled bootstrap path before opening the service.
