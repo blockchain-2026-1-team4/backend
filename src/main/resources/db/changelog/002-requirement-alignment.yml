@@ -154,3 +154,17 @@ databaseChangeLog:
                   type: timestamp with time zone
                   constraints:
                     nullable: false
+
+  - changeSet:
+      id: 006-events-admin-cancel-policy
+      author: codex
+      changes:
+        - addColumn:
+            tableName: events
+            columns:
+              - column:
+                  name: admin_canceled
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false

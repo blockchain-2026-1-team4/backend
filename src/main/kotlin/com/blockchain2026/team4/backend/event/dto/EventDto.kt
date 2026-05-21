@@ -26,6 +26,7 @@ data class EventDto(
     val resaleStart: Instant?,
     val resaleEnd: Instant?,
     val flagged: Boolean,
+    val adminCanceled: Boolean,
     val status: EventStatus,
     val createdAt: Instant,
     val updatedAt: Instant,

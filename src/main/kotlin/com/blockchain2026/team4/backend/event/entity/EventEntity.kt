@@ -81,6 +81,9 @@ class EventEntity(
     @Column(name = "flagged", nullable = false)
     var flagged: Boolean = false,
 
+    @Column(name = "admin_canceled", nullable = false)
+    var adminCanceled: Boolean = false,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     var status: EventStatus = EventStatus.ACTIVE,

@@ -21,7 +21,9 @@ import com.blockchain2026.team4.backend.event.repository.EventRepository
 import com.blockchain2026.team4.backend.event.repository.EventValidatorRepository
 import com.blockchain2026.team4.backend.user.entity.UserRole
 import com.blockchain2026.team4.backend.user.service.UserService
+import jakarta.persistence.criteria.Predicate
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.jpa.domain.Specification
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigInteger
@@ -90,13 +92,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun list(page: Int, size: Int, status: EventStatus?, category: String?, query: String?, flagged: Boolean? = null): PageResponse<EventDto> {
         val pageable = PageRequest.of(page, size)
-        val events = eventRepository.search(
-            status = status,
-            category = category?.takeIf { it.isNotBlank() },
-            query = query?.takeIf { it.isNotBlank() },
-            flagged = flagged,
-            pageable = pageable,
-        )
+        val events = eventRepository.findAll(eventSearchSpec(status, category, query, flagged), pageable)
         return PageResponse(
             items = events.content.map(eventMapper::toDto),
             page = events.number,
@@ -106,6 +102,46 @@ class EventService(
             hasNext = events.hasNext(),
         )
     }
+
+    private fun eventSearchSpec(
+        status: EventStatus?,
+        category: String?,
+        query: String?,
+        flagged: Boolean?,
+    ): Specification<EventEntity> =
+        Specification { root, _, criteriaBuilder ->
+            val predicates = mutableListOf<Predicate>()
+
+            status?.let {
+                predicates += criteriaBuilder.equal(root.get<EventStatus>("status"), it)
+            }
+
+            flagged?.let {
+                predicates += criteriaBuilder.equal(root.get<Boolean>("flagged"), it)
+            }
+
+            category?.trim()?.takeIf { it.isNotBlank() }?.let {
+                predicates += criteriaBuilder.equal(
+                    criteriaBuilder.lower(root.get("category")),
+                    it.lowercase(),
+                )
+            }
+
+            query?.trim()?.takeIf { it.isNotBlank() }?.let {
+                val pattern = "%${it.lowercase()}%"
+                predicates += criteriaBuilder.or(
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("name")), pattern),
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), pattern),
+                    criteriaBuilder.like(criteriaBuilder.lower(root.get("venue")), pattern),
+                )
+            }
+
+            if (predicates.isEmpty()) {
+                criteriaBuilder.conjunction()
+            } else {
+                criteriaBuilder.and(*predicates.toTypedArray())
+            }
+        }
 
     @Transactional(readOnly = true)
     fun listByOrganizer(organizerId: UUID, page: Int, size: Int): PageResponse<EventDto> {
@@ -154,11 +190,20 @@ class EventService(
     fun changeStatus(actorId: UUID, eventId: UUID, command: EventStatusCommand): EventDto {
         val event = findEntity(eventId)
         val actor = userService.getUser(actorId)
-        if (actor.id != event.organizer.id && !actor.roles.contains(UserRole.ADMIN)) {
+        val isAdmin = actor.roles.contains(UserRole.ADMIN)
+        if (actor.id != event.organizer.id && !isAdmin) {
             throw BusinessException(ErrorCode.FORBIDDEN, "이벤트 상태 변경 권한이 없습니다.")
+        }
+        if (!isAdmin && event.adminCanceled && command.status != EventStatus.CANCELED) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.")
         }
 
         event.status = command.status
+        if (command.status == EventStatus.CANCELED) {
+            event.adminCanceled = event.adminCanceled || isAdmin
+        } else if (isAdmin) {
+            event.adminCanceled = false
+        }
         val active = command.status == EventStatus.ACTIVE
         event.contractEventId?.let {
             val submission = trustTicketGateway.setEventStatus(it, active)

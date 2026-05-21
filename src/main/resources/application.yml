@@ -45,11 +45,12 @@ app:
     access-token-expiration-minutes: 120
     refresh-token-expiration-days: 14
   dev-auth:
-    enabled: ${DEV_AUTH_ENABLED:false}
-    token: ${DEV_ADMIN_TOKEN:}
+    enabled: ${DEV_AUTH_ENABLED:true}
+    token: ${DEV_ADMIN_TOKEN:local-dev-admin-token}
     user-id: ${DEV_ADMIN_USER_ID:00000000-0000-0000-0000-000000000004}
     wallet-address: ${DEV_ADMIN_WALLET_ADDRESS:0x0000000000000000000000000000000000000004}
     email: ${DEV_ADMIN_EMAIL:dev-admin@local.test}
+    password: ${DEV_ADMIN_PASSWORD:Admin1234!}
     display-name: ${DEV_ADMIN_DISPLAY_NAME:Local Dev Super Admin}
   errors:
     include-stack-trace: true
