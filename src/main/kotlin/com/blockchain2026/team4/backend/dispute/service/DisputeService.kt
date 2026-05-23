@@ -81,7 +81,7 @@ class DisputeService(
     @Transactional
     fun update(reporterId: UUID, disputeId: UUID, command: DisputeUpdateCommand): DisputeDto {
         val dispute = disputeRepository.findById(disputeId)
-            .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "遺꾩웳 ?좉퀬瑜?李얠쓣 ???놁뒿?덈떎.") }
+            .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "분쟁 신고를 찾을 수 없습니다.") }
         if (dispute.reporter.id != reporterId) {
             throw BusinessException(ErrorCode.FORBIDDEN, "본인 분쟁 신고만 수정할 수 있습니다.")
         }
