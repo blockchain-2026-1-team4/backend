@@ -47,4 +47,11 @@ class DisputeController(
         @PathVariable disputeId: java.util.UUID,
         @Valid @RequestBody request: DisputeUpdateRequest,
     ): DisputeResponse = disputeFacade.update(principal.userId, disputeId, request)
+
+    @Operation(summary = "분쟁 신고 취소", description = "접수 단계의 본인 분쟁 신고를 취소합니다.")
+    @PatchMapping("/{disputeId}/cancel")
+    fun cancel(
+        @CurrentUser principal: AuthPrincipal,
+        @PathVariable disputeId: java.util.UUID,
+    ): DisputeResponse = disputeFacade.cancel(principal.userId, disputeId)
 }

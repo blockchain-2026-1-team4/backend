@@ -17,4 +17,10 @@ interface DisputeRepository : JpaRepository<DisputeEntity, UUID> {
         resaleListingId: UUID,
         statuses: Collection<DisputeStatus>,
     ): Boolean
+
+    fun existsByReporterIdAndTicketIdAndStatusIn(
+        reporterId: UUID,
+        ticketId: UUID,
+        statuses: Collection<DisputeStatus>,
+    ): Boolean
 }

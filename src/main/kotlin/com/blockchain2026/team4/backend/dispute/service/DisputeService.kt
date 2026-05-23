@@ -30,6 +30,7 @@ class DisputeService(
 ) {
     private val editableStatuses = setOf(DisputeStatus.OPEN)
     private val activeDisputeStatuses = setOf(DisputeStatus.OPEN, DisputeStatus.REVIEWING)
+    private val cancelableStatuses = setOf(DisputeStatus.OPEN)
 
     @Transactional
     fun create(reporterId: UUID, command: DisputeCreateCommand): DisputeDto {
@@ -45,6 +46,12 @@ class DisputeService(
             throw BusinessException(ErrorCode.CONFLICT, "이미 처리 중인 분쟁 신고가 있습니다.")
         }
         val ticket = command.ticketId?.let(ticketService::findEntity) ?: listing?.ticket
+        if (
+            ticket != null &&
+            disputeRepository.existsByReporterIdAndTicketIdAndStatusIn(reporterId, ticket.id, activeDisputeStatuses)
+        ) {
+            throw BusinessException(ErrorCode.CONFLICT, "이미 처리 중인 분쟁 신고가 있습니다.")
+        }
         return disputeMapper.toDto(
             disputeRepository.save(
                 DisputeEntity(
@@ -83,6 +90,20 @@ class DisputeService(
         }
         dispute.type = command.type
         dispute.description = command.description
+        return disputeMapper.toDto(dispute)
+    }
+
+    @Transactional
+    fun cancel(reporterId: UUID, disputeId: UUID): DisputeDto {
+        val dispute = disputeRepository.findById(disputeId)
+            .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "분쟁 신고를 찾을 수 없습니다.") }
+        if (dispute.reporter.id != reporterId) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "본인 분쟁 신고만 취소할 수 있습니다.")
+        }
+        if (dispute.status !in cancelableStatuses) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "처리 중이거나 완료된 분쟁 신고는 취소할 수 없습니다.")
+        }
+        dispute.status = DisputeStatus.CANCELED
         return disputeMapper.toDto(dispute)
     }
 

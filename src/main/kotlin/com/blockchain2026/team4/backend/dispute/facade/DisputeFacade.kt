@@ -36,6 +36,9 @@ class DisputeFacade(
     fun update(reporterId: UUID, disputeId: UUID, request: DisputeUpdateRequest): DisputeResponse =
         disputeApiMapper.toResponse(disputeService.update(reporterId, disputeId, DisputeUpdateCommand(request.type, request.description)))
 
+    fun cancel(reporterId: UUID, disputeId: UUID): DisputeResponse =
+        disputeApiMapper.toResponse(disputeService.cancel(reporterId, disputeId))
+
     fun review(adminId: UUID, disputeId: UUID, request: DisputeReviewRequest): DisputeResponse =
         disputeApiMapper.toResponse(disputeService.review(adminId, disputeId, DisputeReviewCommand(request.status, request.resolutionNote)))
 
