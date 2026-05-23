@@ -91,6 +91,27 @@ class UserService(
     }
 
     @Transactional
+    fun revokeRole(userId: UUID, role: UserRole): UserDto {
+        val entity = findEntity(userId)
+        if (role == UserRole.USER) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "USER 기본 권한은 회수할 수 없습니다.")
+        }
+        entity.roles.remove(role)
+        return userMapper.toDto(entity)
+    }
+
+    @Transactional
+    fun grantOrganizer(userId: UUID): UserDto {
+        val entity = findEntity(userId)
+        entity.roles.add(UserRole.ORGANIZER)
+        entity.walletAddress?.let {
+            val submission = trustTicketGateway.addOrganizer(it)
+            blockchainTransactionService.record(submission)
+        }
+        return userMapper.toDto(entity)
+    }
+
+    @Transactional
     fun suspend(userId: UUID): UserDto {
         val entity = findEntity(userId)
         entity.status = UserStatus.SUSPENDED

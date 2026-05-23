@@ -4,6 +4,7 @@ import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.user.controller.request.UpdateMeRequest
 import com.blockchain2026.team4.backend.user.controller.response.UserResponse
 import com.blockchain2026.team4.backend.user.dto.UserUpdateCommand
+import com.blockchain2026.team4.backend.user.entity.UserRole
 import com.blockchain2026.team4.backend.user.entity.UserStatus
 import com.blockchain2026.team4.backend.user.mapper.UserApiMapper
 import com.blockchain2026.team4.backend.user.service.UserService
@@ -39,4 +40,10 @@ class UserFacade(
     fun delete(userId: UUID): UserResponse = userApiMapper.toResponse(userService.delete(userId))
 
     fun grantValidator(userId: UUID): UserResponse = userApiMapper.toResponse(userService.grantValidator(userId))
+
+    fun revokeValidator(userId: UUID): UserResponse = userApiMapper.toResponse(userService.revokeRole(userId, UserRole.VALIDATOR))
+
+    fun grantOrganizer(userId: UUID): UserResponse = userApiMapper.toResponse(userService.grantOrganizer(userId))
+
+    fun revokeOrganizer(userId: UUID): UserResponse = userApiMapper.toResponse(userService.revokeRole(userId, UserRole.ORGANIZER))
 }

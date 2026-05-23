@@ -65,4 +65,19 @@ class UserController(
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{userId}/validator")
     fun grantValidator(@PathVariable userId: UUID): UserResponse = userFacade.grantValidator(userId)
+
+    @Operation(summary = "전역 검증자 권한 회수", description = "관리자가 사용자에게서 전체 이벤트 체크인 검증자 권한을 회수합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/validator/revoke")
+    fun revokeValidator(@PathVariable userId: UUID): UserResponse = userFacade.revokeValidator(userId)
+
+    @Operation(summary = "주최자 권한 부여", description = "관리자가 사용자에게 주최자 권한을 부여합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/organizer")
+    fun grantOrganizer(@PathVariable userId: UUID): UserResponse = userFacade.grantOrganizer(userId)
+
+    @Operation(summary = "주최자 권한 회수", description = "관리자가 사용자에게서 주최자 권한을 회수합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/organizer/revoke")
+    fun revokeOrganizer(@PathVariable userId: UUID): UserResponse = userFacade.revokeOrganizer(userId)
 }
