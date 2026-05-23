@@ -11,6 +11,11 @@ data class DisputeCreateCommand(
     val description: String,
 )
 
+data class DisputeUpdateCommand(
+    val type: DisputeType,
+    val description: String,
+)
+
 data class DisputeReviewCommand(
     val status: DisputeStatus,
     val resolutionNote: String?,

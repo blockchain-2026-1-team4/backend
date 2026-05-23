@@ -6,6 +6,7 @@ import com.blockchain2026.team4.backend.common.error.ErrorCode
 import com.blockchain2026.team4.backend.dispute.dto.DisputeCreateCommand
 import com.blockchain2026.team4.backend.dispute.dto.DisputeDto
 import com.blockchain2026.team4.backend.dispute.dto.DisputeReviewCommand
+import com.blockchain2026.team4.backend.dispute.dto.DisputeUpdateCommand
 import com.blockchain2026.team4.backend.dispute.entity.DisputeEntity
 import com.blockchain2026.team4.backend.dispute.entity.DisputeStatus
 import com.blockchain2026.team4.backend.dispute.mapper.DisputeMapper
@@ -27,6 +28,9 @@ class DisputeService(
     private val ticketService: TicketService,
     private val disputeMapper: DisputeMapper,
 ) {
+    private val editableStatuses = setOf(DisputeStatus.OPEN)
+    private val activeDisputeStatuses = setOf(DisputeStatus.OPEN, DisputeStatus.REVIEWING)
+
     @Transactional
     fun create(reporterId: UUID, command: DisputeCreateCommand): DisputeDto {
         if (command.resaleListingId == null && command.ticketId == null) {
@@ -34,6 +38,12 @@ class DisputeService(
         }
         val reporter = userService.findEntity(reporterId)
         val listing = command.resaleListingId?.let(resaleService::findEntity)
+        if (
+            listing != null &&
+            disputeRepository.existsByReporterIdAndResaleListingIdAndStatusIn(reporterId, listing.id, activeDisputeStatuses)
+        ) {
+            throw BusinessException(ErrorCode.CONFLICT, "이미 처리 중인 분쟁 신고가 있습니다.")
+        }
         val ticket = command.ticketId?.let(ticketService::findEntity) ?: listing?.ticket
         return disputeMapper.toDto(
             disputeRepository.save(
@@ -59,6 +69,21 @@ class DisputeService(
         val pageable = PageRequest.of(page, size)
         val disputes = status?.let { disputeRepository.findAllByStatus(it, pageable) } ?: disputeRepository.findAll(pageable)
         return disputes.toResponse()
+    }
+
+    @Transactional
+    fun update(reporterId: UUID, disputeId: UUID, command: DisputeUpdateCommand): DisputeDto {
+        val dispute = disputeRepository.findById(disputeId)
+            .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "遺꾩웳 ?좉퀬瑜?李얠쓣 ???놁뒿?덈떎.") }
+        if (dispute.reporter.id != reporterId) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "본인 분쟁 신고만 수정할 수 있습니다.")
+        }
+        if (dispute.status !in editableStatuses) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "처리 중이거나 완료된 분쟁 신고는 수정할 수 없습니다.")
+        }
+        dispute.type = command.type
+        dispute.description = command.description
+        return disputeMapper.toDto(dispute)
     }
 
     @Transactional
