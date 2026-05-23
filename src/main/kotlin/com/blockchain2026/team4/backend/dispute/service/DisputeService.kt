@@ -43,14 +43,14 @@ class DisputeService(
             listing != null &&
             disputeRepository.existsByReporterIdAndResaleListingIdAndStatusIn(reporterId, listing.id, activeDisputeStatuses)
         ) {
-            throw BusinessException(ErrorCode.CONFLICT, "이미 처리 중인 분쟁 신고가 있습니다.")
+            throw BusinessException(ErrorCode.CONFLICT, "동일한 거래/티켓에 대해 이미 신고하셨습니다.")
         }
         val ticket = command.ticketId?.let(ticketService::findEntity) ?: listing?.ticket
         if (
             ticket != null &&
             disputeRepository.existsByReporterIdAndTicketIdAndStatusIn(reporterId, ticket.id, activeDisputeStatuses)
         ) {
-            throw BusinessException(ErrorCode.CONFLICT, "이미 처리 중인 분쟁 신고가 있습니다.")
+            throw BusinessException(ErrorCode.CONFLICT, "동일한 거래/티켓에 대해 이미 신고하셨습니다.")
         }
         return disputeMapper.toDto(
             disputeRepository.save(
