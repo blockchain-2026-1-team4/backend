@@ -199,6 +199,34 @@ class EventService(
             event.eventStartAt = it
         }
         command.eventEndAt?.let { event.eventEndAt = it }
+        command.primarySaleStart?.let { event.primarySaleStart = it }
+        command.primarySaleEnd?.let { event.primarySaleEnd = it }
+        if (event.primarySaleEnd <= event.primarySaleStart) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "티켓 판매 종료일은 판매 시작일보다 늦어야 합니다.")
+        }
+        command.rounds?.let { rounds ->
+            validateRounds(rounds)
+            eventRoundRepository.deleteAllByEventId(eventId)
+            rounds.forEach {
+                eventRoundRepository.save(
+                    EventRoundEntity(
+                        event = event,
+                        title = it.title,
+                        eventDate = it.eventDate,
+                        startTime = it.startTime,
+                        endTime = it.endTime,
+                        saleStartAt = it.saleStartAt,
+                        saleEndAt = it.saleEndAt,
+                        useGlobalSalePeriod = it.useGlobalSalePeriod,
+                    ),
+                )
+            }
+            val first = rounds.minBy { it.eventDate.atTime(it.startTime) }
+            val last = rounds.maxBy { it.eventDate.atTime(it.endTime) }
+            event.eventAt = first.eventDate.atTime(first.startTime).atZone(ZoneId.systemDefault()).toInstant()
+            event.eventStartAt = event.eventAt
+            event.eventEndAt = last.eventDate.atTime(last.endTime).atZone(ZoneId.systemDefault()).toInstant()
+        }
         return eventMapper.toDto(event, eventRoundRepository.findAllByEventIdOrderByEventDateAscStartTimeAsc(eventId))
     }
 

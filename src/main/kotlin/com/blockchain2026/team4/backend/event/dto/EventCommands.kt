@@ -37,6 +37,9 @@ data class EventUpdateCommand(
     val eventAt: Instant?,
     val eventStartAt: Instant?,
     val eventEndAt: Instant?,
+    val primarySaleStart: Instant?,
+    val primarySaleEnd: Instant?,
+    val rounds: List<EventRoundCommand>?,
 )
 
 data class EventRoundCommand(

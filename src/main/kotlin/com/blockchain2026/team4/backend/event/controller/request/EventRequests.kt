@@ -80,6 +80,11 @@ data class EventUpdateRequest(
     val eventEndAt: Instant? = null,
     val startsAt: Instant? = null,
     val endsAt: Instant? = null,
+    val primarySaleStart: Instant? = null,
+    val primarySaleEnd: Instant? = null,
+    val salesStartAt: Instant? = null,
+    val salesEndAt: Instant? = null,
+    val rounds: List<EventRoundRequest>? = null,
 )
 
 data class EventLocationRequest(

@@ -6,4 +6,5 @@ import java.util.UUID
 
 interface EventRoundRepository : JpaRepository<EventRoundEntity, UUID> {
     fun findAllByEventIdOrderByEventDateAscStartTimeAsc(eventId: UUID): List<EventRoundEntity>
+    fun deleteAllByEventId(eventId: UUID)
 }

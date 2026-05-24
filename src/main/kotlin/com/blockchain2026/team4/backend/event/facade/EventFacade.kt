@@ -117,8 +117,22 @@ class EventFacade(
         )
     }
 
-    fun update(organizerId: UUID, eventId: UUID, request: EventUpdateRequest): EventResponse =
-        eventApiMapper.toResponse(
+    fun update(organizerId: UUID, eventId: UUID, request: EventUpdateRequest): EventResponse {
+        val saleStart = request.primarySaleStart ?: request.salesStartAt
+        val saleEnd = request.primarySaleEnd ?: request.salesEndAt
+        val rounds = request.rounds?.mapIndexed { index, round ->
+            val roundStartInstant = round.eventDate.atTime(round.startTime).atZone(java.time.ZoneId.systemDefault()).toInstant()
+            EventRoundCommand(
+                title = round.title?.takeIf { it.isNotBlank() } ?: "${index + 1}회차",
+                eventDate = round.eventDate,
+                startTime = round.startTime,
+                endTime = round.endTime,
+                saleStartAt = if (round.useGlobalSalePeriod) saleStart ?: round.saleStartAt ?: Instant.now() else round.saleStartAt ?: saleStart ?: Instant.now(),
+                saleEndAt = if (round.useGlobalSalePeriod) saleEnd ?: round.saleEndAt ?: roundStartInstant else round.saleEndAt ?: saleEnd ?: roundStartInstant,
+                useGlobalSalePeriod = round.useGlobalSalePeriod,
+            )
+        }
+        return eventApiMapper.toResponse(
             eventService.update(
                 organizerId,
                 eventId,
@@ -132,9 +146,13 @@ class EventFacade(
                     request.eventAt,
                     request.eventStartAt ?: request.startsAt,
                     request.eventEndAt ?: request.endsAt,
+                    saleStart,
+                    saleEnd,
+                    rounds,
                 ),
             ),
         )
+    }
 
     fun changeStatus(actorId: UUID, eventId: UUID, request: EventStatusRequest): EventResponse =
         eventApiMapper.toResponse(eventService.changeStatus(actorId, eventId, EventStatusCommand(request.status)))
