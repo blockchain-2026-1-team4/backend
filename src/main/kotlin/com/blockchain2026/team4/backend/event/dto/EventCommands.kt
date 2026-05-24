@@ -34,6 +34,7 @@ data class EventUpdateCommand(
     val venue: String?,
     val venuePlaceId: String?,
     val imageUrl: String?,
+    val removeImage: Boolean,
     val eventAt: Instant?,
     val eventStartAt: Instant?,
     val eventEndAt: Instant?,

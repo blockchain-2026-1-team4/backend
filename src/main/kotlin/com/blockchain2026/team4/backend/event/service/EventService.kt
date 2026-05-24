@@ -189,7 +189,11 @@ class EventService(
         command.category?.let { event.category = it }
         command.venue?.let { event.venue = it }
         command.venuePlaceId?.let { event.venuePlaceId = it }
-        command.imageUrl?.let { event.imageUrl = it }
+        if (command.removeImage) {
+            event.imageUrl = null
+        } else {
+            command.imageUrl?.let { event.imageUrl = it }
+        }
         command.eventAt?.let {
             event.eventAt = it
             event.eventStartAt = it

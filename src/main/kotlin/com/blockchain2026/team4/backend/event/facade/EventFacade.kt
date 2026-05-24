@@ -143,6 +143,7 @@ class EventFacade(
                     request.location?.name?.takeIf { it.isNotBlank() } ?: request.venue,
                     request.location?.placeId ?: request.venuePlaceId,
                     request.imageUrl,
+                    request.removeImage,
                     request.eventAt,
                     request.eventStartAt ?: request.startsAt,
                     request.eventEndAt ?: request.endsAt,

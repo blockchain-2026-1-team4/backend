@@ -75,6 +75,7 @@ data class EventUpdateRequest(
     val location: EventLocationRequest? = null,
     val venuePlaceId: String? = null,
     val imageUrl: String? = null,
+    val removeImage: Boolean = false,
     val eventAt: Instant? = null,
     val eventStartAt: Instant? = null,
     val eventEndAt: Instant? = null,
