@@ -156,6 +156,23 @@ databaseChangeLog:
                     nullable: false
 
   - changeSet:
+      id: 009-ticket-round-section-sale-policy
+      author: codex
+      changes:
+        - addColumn:
+            tableName: tickets
+            columns:
+              - column:
+                  name: event_round_id
+                  type: uuid
+              - column:
+                  name: sale_start_at
+                  type: timestamp with time zone
+              - column:
+                  name: sale_end_at
+                  type: timestamp with time zone
+
+  - changeSet:
       id: 006-events-admin-cancel-policy
       author: codex
       changes:

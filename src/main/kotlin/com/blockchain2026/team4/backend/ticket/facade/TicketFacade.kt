@@ -25,8 +25,11 @@ class TicketFacade(
                     totalTicketCount = request.totalTicketCount,
                     ticketSections = request.ticketSections.map {
                         TicketSectionIssueCommand(
+                            eventRoundId = it.eventRoundId,
                             sectionName = it.sectionName,
                             priceWei = it.priceWei,
+                            saleStartAt = it.saleStartAt,
+                            saleEndAt = it.saleEndAt,
                             resaleEnabled = it.resaleEnabled,
                             resaleCapRate = it.resaleCapRate,
                             startNumber = it.startNumber,

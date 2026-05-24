@@ -41,8 +41,17 @@ class TicketEntity(
     @Column(name = "section_name", nullable = false, length = 80)
     var sectionName: String = seatInfo.substringBefore("-").ifBlank { "GENERAL" },
 
+    @Column(name = "event_round_id")
+    var eventRoundId: UUID? = null,
+
     @Column(name = "original_price_wei", nullable = false, precision = 78, scale = 0)
     var originalPriceWei: BigInteger,
+
+    @Column(name = "sale_start_at")
+    var saleStartAt: Instant? = null,
+
+    @Column(name = "sale_end_at")
+    var saleEndAt: Instant? = null,
 
     @Column(name = "resale_enabled", nullable = false)
     var resaleEnabled: Boolean = false,

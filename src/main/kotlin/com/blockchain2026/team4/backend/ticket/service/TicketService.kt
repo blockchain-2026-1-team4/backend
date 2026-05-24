@@ -36,6 +36,16 @@ class TicketService(
         if (event.organizer.id != organizerId) {
             throw BusinessException(ErrorCode.FORBIDDEN, "해당 이벤트의 주최자만 티켓을 발행할 수 있습니다.")
         }
+        command.ticketSections.forEach { section ->
+            if (section.quantity <= 0 || section.startNumber <= 0) {
+                throw BusinessException(ErrorCode.INVALID_REQUEST, "발행 수량과 시작 번호를 확인해주세요.")
+            }
+            val saleStart = section.saleStartAt ?: event.primarySaleStart
+            val saleEnd = section.saleEndAt ?: event.primarySaleEnd
+            if (!saleStart.isBefore(saleEnd)) {
+                throw BusinessException(ErrorCode.INVALID_REQUEST, "${section.sectionName} 판매 종료 시간은 판매 시작 시간보다 늦어야 합니다.")
+            }
+        }
         val issueItems = command.ticketSections.flatMap { section ->
             (0 until section.quantity).map { offset ->
                 val seatInfo = "${section.sectionName}-${section.startNumber + offset}"
@@ -67,7 +77,10 @@ class TicketService(
                     event = event,
                     seatInfo = seatInfo,
                     sectionName = sectionName,
+                    eventRoundId = sectionPolicy?.eventRoundId,
                     originalPriceWei = sectionPolicy?.priceWei ?: event.ticketPriceWei,
+                    saleStartAt = sectionPolicy?.saleStartAt,
+                    saleEndAt = sectionPolicy?.saleEndAt,
                     resaleEnabled = sectionPolicy?.resaleEnabled ?: event.resaleAllowed,
                     resaleCapRate = sectionPolicy?.resaleCapRate ?: event.maxResalePriceRate,
                 ),
@@ -85,8 +98,10 @@ class TicketService(
         if (event.status != EventStatus.ACTIVE) {
             throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 티켓만 구매할 수 있습니다.")
         }
-        if (now.isBefore(event.primarySaleStart) || now.isAfter(event.primarySaleEnd)) {
-            throw BusinessException(ErrorCode.CONFLICT, "1차 판매 기간이 아닙니다.")
+        val saleStart = ticket.saleStartAt ?: event.primarySaleStart
+        val saleEnd = ticket.saleEndAt ?: event.primarySaleEnd
+        if (now.isBefore(saleStart) || now.isAfter(saleEnd)) {
+            throw BusinessException(ErrorCode.CONFLICT, "이 티켓의 판매 기간이 아닙니다.")
         }
         if (ticket.status != TicketStatus.AVAILABLE) {
             throw BusinessException(ErrorCode.CONFLICT, "구매 가능한 티켓이 아닙니다.")
