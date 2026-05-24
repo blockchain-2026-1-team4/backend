@@ -42,6 +42,9 @@ class EventEntity(
     @Column(name = "venue", nullable = false, length = 180)
     var venue: String,
 
+    @Column(name = "venue_place_id", length = 120)
+    var venuePlaceId: String? = null,
+
     @Column(name = "image_url", length = 500)
     var imageUrl: String?,
 

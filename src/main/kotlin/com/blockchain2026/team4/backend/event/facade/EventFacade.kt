@@ -11,6 +11,7 @@ import com.blockchain2026.team4.backend.event.controller.response.EventResponse
 import com.blockchain2026.team4.backend.event.controller.response.EventValidatorResponse
 import com.blockchain2026.team4.backend.event.dto.EventCreateCommand
 import com.blockchain2026.team4.backend.event.dto.EventResalePolicyCommand
+import com.blockchain2026.team4.backend.event.dto.EventRoundCommand
 import com.blockchain2026.team4.backend.event.dto.EventStatusCommand
 import com.blockchain2026.team4.backend.event.dto.EventUpdateCommand
 import com.blockchain2026.team4.backend.event.entity.EventStatus
@@ -32,9 +33,37 @@ class EventFacade(
 ) {
     fun create(organizerId: UUID, request: EventCreateRequest): EventResponse {
         val start = request.eventStartAt ?: request.startsAt ?: request.eventAt ?: Instant.now()
-        val end = request.eventEndAt ?: request.endsAt ?: request.eventAt ?: start
+        val end = request.eventEndAt ?: request.endsAt ?: request.eventAt?.plusSeconds(2 * 60 * 60) ?: start
         val saleStart = request.primarySaleStart ?: request.salesStartAt ?: Instant.now()
         val saleEnd = request.primarySaleEnd ?: request.salesEndAt ?: end
+        val rounds = if (request.rounds.isNotEmpty()) {
+            request.rounds.mapIndexed { index, round ->
+                val roundStartInstant = round.eventDate.atTime(round.startTime).atZone(java.time.ZoneId.systemDefault()).toInstant()
+                EventRoundCommand(
+                    title = round.title?.takeIf { it.isNotBlank() } ?: "${index + 1}회차",
+                    eventDate = round.eventDate,
+                    startTime = round.startTime,
+                    endTime = round.endTime,
+                    saleStartAt = if (round.useGlobalSalePeriod) saleStart else round.saleStartAt ?: saleStart,
+                    saleEndAt = if (round.useGlobalSalePeriod) saleEnd else round.saleEndAt ?: roundStartInstant,
+                    useGlobalSalePeriod = round.useGlobalSalePeriod,
+                )
+            }
+        } else {
+            val roundStart = start.atZone(java.time.ZoneId.systemDefault())
+            val roundEnd = end.atZone(java.time.ZoneId.systemDefault())
+            listOf(
+                EventRoundCommand(
+                    title = "1회차",
+                    eventDate = roundStart.toLocalDate(),
+                    startTime = roundStart.toLocalTime(),
+                    endTime = if (roundEnd.toLocalDate() == roundStart.toLocalDate()) roundEnd.toLocalTime() else java.time.LocalTime.of(23, 59),
+                    saleStartAt = saleStart,
+                    saleEndAt = saleEnd,
+                    useGlobalSalePeriod = true,
+                ),
+            )
+        }
         return eventApiMapper.toResponse(
             eventService.create(
                 organizerId,
@@ -42,7 +71,8 @@ class EventFacade(
                     name = request.name,
                     description = request.description,
                     category = request.category,
-                    venue = request.venue,
+                    venue = request.location?.name?.takeIf { it.isNotBlank() } ?: request.venue,
+                    venuePlaceId = request.location?.placeId ?: request.venuePlaceId,
                     imageUrl = request.imageUrl,
                     eventAt = start,
                     eventStartAt = start,
@@ -55,6 +85,7 @@ class EventFacade(
                     maxResalePriceRate = request.maxResalePriceRate ?: 10_000,
                     resaleStart = request.resaleStart,
                     resaleEnd = request.resaleEnd,
+                    rounds = rounds,
                 ),
             ),
         )
@@ -95,7 +126,8 @@ class EventFacade(
                     request.name,
                     request.description,
                     request.category,
-                    request.venue,
+                    request.location?.name?.takeIf { it.isNotBlank() } ?: request.venue,
+                    request.location?.placeId ?: request.venuePlaceId,
                     request.imageUrl,
                     request.eventAt,
                     request.eventStartAt ?: request.startsAt,

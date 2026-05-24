@@ -3,6 +3,8 @@ package com.blockchain2026.team4.backend.event.dto
 import com.blockchain2026.team4.backend.event.entity.EventStatus
 import java.math.BigInteger
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
 
 data class EventDto(
@@ -13,6 +15,7 @@ data class EventDto(
     val description: String?,
     val category: String,
     val venue: String,
+    val venuePlaceId: String?,
     val imageUrl: String?,
     val eventAt: Instant,
     val eventStartAt: Instant,
@@ -30,6 +33,18 @@ data class EventDto(
     val flagged: Boolean,
     val adminCanceled: Boolean,
     val status: EventStatus,
+    val rounds: List<EventRoundDto>,
     val createdAt: Instant,
     val updatedAt: Instant,
+)
+
+data class EventRoundDto(
+    val id: UUID,
+    val title: String,
+    val eventDate: LocalDate,
+    val startTime: LocalTime,
+    val endTime: LocalTime,
+    val saleStartAt: Instant,
+    val saleEndAt: Instant,
+    val useGlobalSalePeriod: Boolean,
 )
