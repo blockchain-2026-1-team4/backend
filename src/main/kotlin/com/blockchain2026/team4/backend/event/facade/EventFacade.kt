@@ -19,6 +19,8 @@ import com.blockchain2026.team4.backend.event.mapper.EventValidatorApiMapper
 import com.blockchain2026.team4.backend.event.service.EventService
 import org.springframework.stereotype.Component
 import org.springframework.web.multipart.MultipartFile
+import java.math.BigInteger
+import java.time.Instant
 import java.util.UUID
 
 @Component
@@ -28,8 +30,12 @@ class EventFacade(
     private val eventValidatorApiMapper: EventValidatorApiMapper,
     private val localImageStorageService: LocalImageStorageService,
 ) {
-    fun create(organizerId: UUID, request: EventCreateRequest): EventResponse =
-        eventApiMapper.toResponse(
+    fun create(organizerId: UUID, request: EventCreateRequest): EventResponse {
+        val start = request.eventStartAt ?: request.startsAt ?: request.eventAt ?: Instant.now()
+        val end = request.eventEndAt ?: request.endsAt ?: request.eventAt ?: start
+        val saleStart = request.primarySaleStart ?: request.salesStartAt ?: Instant.now()
+        val saleEnd = request.primarySaleEnd ?: request.salesEndAt ?: end
+        return eventApiMapper.toResponse(
             eventService.create(
                 organizerId,
                 EventCreateCommand(
@@ -38,18 +44,21 @@ class EventFacade(
                     category = request.category,
                     venue = request.venue,
                     imageUrl = request.imageUrl,
-                    eventAt = request.eventAt,
-                    ticketPriceWei = request.ticketPriceWei,
-                    totalTicketCount = request.totalTicketCount,
-                    primarySaleStart = request.primarySaleStart,
-                    primarySaleEnd = request.primarySaleEnd,
+                    eventAt = start,
+                    eventStartAt = start,
+                    eventEndAt = end,
+                    ticketPriceWei = request.ticketPriceWei ?: BigInteger.ONE,
+                    totalTicketCount = request.totalTicketCount ?: 0,
+                    primarySaleStart = saleStart,
+                    primarySaleEnd = saleEnd,
                     resaleAllowed = request.resaleAllowed,
-                    maxResalePriceRate = request.maxResalePriceRate,
+                    maxResalePriceRate = request.maxResalePriceRate ?: 10_000,
                     resaleStart = request.resaleStart,
                     resaleEnd = request.resaleEnd,
                 ),
             ),
         )
+    }
 
     fun get(eventId: UUID): EventResponse = eventApiMapper.toResponse(eventService.get(eventId))
 
@@ -82,7 +91,16 @@ class EventFacade(
             eventService.update(
                 organizerId,
                 eventId,
-                EventUpdateCommand(request.name, request.description, request.category, request.venue, request.imageUrl, request.eventAt),
+                EventUpdateCommand(
+                    request.name,
+                    request.description,
+                    request.category,
+                    request.venue,
+                    request.imageUrl,
+                    request.eventAt,
+                    request.eventStartAt ?: request.startsAt,
+                    request.eventEndAt ?: request.endsAt,
+                ),
             ),
         )
 

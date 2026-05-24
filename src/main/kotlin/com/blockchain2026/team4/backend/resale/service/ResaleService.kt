@@ -41,11 +41,11 @@ class ResaleService(
         if (ticket.owner?.id != userId) throw BusinessException(ErrorCode.FORBIDDEN, "소유한 티켓만 리셀 등록할 수 있습니다.")
         if (event.status != EventStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트 티켓만 리셀 등록할 수 있습니다.")
         if (ticket.status != TicketStatus.SOLD) throw BusinessException(ErrorCode.CONFLICT, "판매된 미사용 티켓만 리셀 등록할 수 있습니다.")
-        if (!event.resaleAllowed) throw BusinessException(ErrorCode.CONFLICT, "이 이벤트는 리셀을 허용하지 않습니다.")
+        if (!ticket.resaleEnabled) throw BusinessException(ErrorCode.CONFLICT, "이 티켓 구역은 리셀을 허용하지 않습니다.")
         if (event.resaleStart == null || event.resaleEnd == null || now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd)) {
             throw BusinessException(ErrorCode.CONFLICT, "리셀 가능 기간이 아닙니다.")
         }
-        val maxPrice = ticket.originalPriceWei.multiply(event.maxResalePriceRate.toBigInteger()).divide(BigInteger.valueOf(10_000))
+        val maxPrice = ticket.originalPriceWei.multiply(ticket.resaleCapRate.toBigInteger()).divide(BigInteger.valueOf(10_000))
         if (command.priceWei > maxPrice) throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 가격 상한을 초과했습니다.")
 
         ticket.contractTokenId?.let {

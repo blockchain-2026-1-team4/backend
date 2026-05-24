@@ -25,25 +25,31 @@ data class EventCreateRequest(
 
     val imageUrl: String?,
 
-    @field:NotNull
-    val eventAt: Instant,
+    val eventAt: Instant?,
 
-    @field:NotNull
-    val ticketPriceWei: BigInteger,
+    val eventStartAt: Instant?,
 
-    @field:Min(1)
-    val totalTicketCount: Int,
+    val eventEndAt: Instant?,
 
-    @field:NotNull
-    val primarySaleStart: Instant,
+    val startsAt: Instant?,
 
-    @field:NotNull
-    val primarySaleEnd: Instant,
+    val endsAt: Instant?,
 
-    val resaleAllowed: Boolean,
+    val ticketPriceWei: BigInteger? = null,
 
-    @field:Min(10_000)
-    val maxResalePriceRate: Int,
+    val totalTicketCount: Int? = null,
+
+    val primarySaleStart: Instant?,
+
+    val primarySaleEnd: Instant?,
+
+    val salesStartAt: Instant?,
+
+    val salesEndAt: Instant?,
+
+    val resaleAllowed: Boolean = false,
+
+    val maxResalePriceRate: Int? = null,
 
     val resaleStart: Instant?,
 
@@ -60,6 +66,10 @@ data class EventUpdateRequest(
     val venue: String?,
     val imageUrl: String?,
     val eventAt: Instant?,
+    val eventStartAt: Instant?,
+    val eventEndAt: Instant?,
+    val startsAt: Instant?,
+    val endsAt: Instant?,
 )
 
 data class EventStatusRequest(

@@ -51,7 +51,7 @@ class EventService(
                 eventName = command.name,
                 eventTimestamp = command.eventAt.epochSecond.toBigInteger(),
                 ticketPriceWei = command.ticketPriceWei,
-                totalTicketCount = command.totalTicketCount.toBigInteger(),
+                totalTicketCount = command.totalTicketCount.coerceAtLeast(1).toBigInteger(),
                 primarySaleStart = command.primarySaleStart.epochSecond.toBigInteger(),
                 primarySaleEnd = command.primarySaleEnd.epochSecond.toBigInteger(),
                 resaleAllowed = command.resaleAllowed,
@@ -71,6 +71,8 @@ class EventService(
                 venue = command.venue,
                 imageUrl = command.imageUrl,
                 eventAt = command.eventAt,
+                eventStartAt = command.eventStartAt,
+                eventEndAt = command.eventEndAt,
                 ticketPriceWei = command.ticketPriceWei,
                 totalTicketCount = command.totalTicketCount,
                 remainingTicketCount = command.totalTicketCount,
@@ -165,7 +167,15 @@ class EventService(
         command.category?.let { event.category = it }
         command.venue?.let { event.venue = it }
         command.imageUrl?.let { event.imageUrl = it }
-        command.eventAt?.let { event.eventAt = it }
+        command.eventAt?.let {
+            event.eventAt = it
+            event.eventStartAt = it
+        }
+        command.eventStartAt?.let {
+            event.eventAt = it
+            event.eventStartAt = it
+        }
+        command.eventEndAt?.let { event.eventEndAt = it }
         return eventMapper.toDto(event)
     }
 
@@ -286,8 +296,11 @@ class EventService(
         if (command.ticketPriceWei <= BigInteger.ZERO) {
             throw BusinessException(ErrorCode.INVALID_REQUEST, "티켓 가격은 0보다 커야 합니다.")
         }
-        if (command.totalTicketCount <= 0) {
-            throw BusinessException(ErrorCode.INVALID_REQUEST, "티켓 수량은 1개 이상이어야 합니다.")
+        if (command.totalTicketCount < 0) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "티켓 수량은 0개 이상이어야 합니다.")
+        }
+        if (command.eventEndAt.isBefore(command.eventStartAt)) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "이벤트 종료 시간은 시작 시간보다 빠를 수 없습니다.")
         }
         if (!command.primarySaleStart.isBefore(command.primarySaleEnd)) {
             throw BusinessException(ErrorCode.INVALID_REQUEST, "1차 판매 시작 시간은 종료 시간보다 빨라야 합니다.")

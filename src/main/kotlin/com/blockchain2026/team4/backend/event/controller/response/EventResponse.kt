@@ -15,6 +15,8 @@ data class EventResponse(
     val venue: String,
     val imageUrl: String?,
     val eventAt: Instant,
+    val eventStartAt: Instant,
+    val eventEndAt: Instant,
     val ticketPriceWei: BigInteger,
     val totalTicketCount: Int,
     val remainingTicketCount: Int,

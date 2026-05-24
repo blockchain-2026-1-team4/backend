@@ -48,6 +48,12 @@ class EventEntity(
     @Column(name = "event_at", nullable = false)
     var eventAt: Instant,
 
+    @Column(name = "event_start_at", nullable = false)
+    var eventStartAt: Instant = eventAt,
+
+    @Column(name = "event_end_at", nullable = false)
+    var eventEndAt: Instant = eventAt,
+
     @Column(name = "ticket_price_wei", nullable = false, precision = 78, scale = 0)
     var ticketPriceWei: BigInteger,
 

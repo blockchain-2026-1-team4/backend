@@ -36,12 +36,28 @@ class TicketService(
         if (event.organizer.id != organizerId) {
             throw BusinessException(ErrorCode.FORBIDDEN, "해당 이벤트의 주최자만 티켓을 발행할 수 있습니다.")
         }
+        val issueItems = command.ticketSections.flatMap { section ->
+            (0 until section.quantity).map { offset ->
+                val seatInfo = "${section.sectionName}-${section.startNumber + offset}"
+                Triple(seatInfo, section.sectionName, section)
+            }
+        } + command.seatInfos.map { seatInfo ->
+            Triple(seatInfo, seatInfo.substringBefore("-").ifBlank { "GENERAL" }, null)
+        }
+        if (issueItems.isEmpty()) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "발행할 티켓 정보가 필요합니다.")
+        }
+
         val existing = ticketRepository.countByEventId(eventId)
-        if (existing + command.seatInfos.size > event.totalTicketCount) {
+        command.totalTicketCount?.takeIf { it > event.totalTicketCount }?.let {
+            event.totalTicketCount = it
+            event.remainingTicketCount = (it - event.soldTicketCount).coerceAtLeast(0)
+        }
+        if (event.totalTicketCount > 0 && existing + issueItems.size > event.totalTicketCount) {
             throw BusinessException(ErrorCode.CONFLICT, "발행 가능한 티켓 수량을 초과했습니다.")
         }
 
-        val saved = command.seatInfos.map { seatInfo ->
+        val saved = issueItems.map { (seatInfo, sectionName, sectionPolicy) ->
             event.contractEventId?.let {
                 val submission = trustTicketGateway.mintTicket(it, seatInfo)
                 blockchainTransactionService.record(submission)
@@ -50,7 +66,10 @@ class TicketService(
                 TicketEntity(
                     event = event,
                     seatInfo = seatInfo,
-                    originalPriceWei = event.ticketPriceWei,
+                    sectionName = sectionName,
+                    originalPriceWei = sectionPolicy?.priceWei ?: event.ticketPriceWei,
+                    resaleEnabled = sectionPolicy?.resaleEnabled ?: event.resaleAllowed,
+                    resaleCapRate = sectionPolicy?.resaleCapRate ?: event.maxResalePriceRate,
                 ),
             )
         }

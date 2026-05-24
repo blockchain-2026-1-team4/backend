@@ -38,8 +38,17 @@ class TicketEntity(
     @Column(name = "seat_info", nullable = false, length = 120)
     var seatInfo: String,
 
+    @Column(name = "section_name", nullable = false, length = 80)
+    var sectionName: String = seatInfo.substringBefore("-").ifBlank { "GENERAL" },
+
     @Column(name = "original_price_wei", nullable = false, precision = 78, scale = 0)
     var originalPriceWei: BigInteger,
+
+    @Column(name = "resale_enabled", nullable = false)
+    var resaleEnabled: Boolean = false,
+
+    @Column(name = "resale_cap_rate", nullable = false)
+    var resaleCapRate: Int = 10_000,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
