@@ -39,7 +39,7 @@ class ResaleService(
         val now = Instant.now()
 
         if (ticket.owner?.id != userId) throw BusinessException(ErrorCode.FORBIDDEN, "소유한 티켓만 리셀 등록할 수 있습니다.")
-        if (event.status != EventStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트 티켓만 리셀 등록할 수 있습니다.")
+        if (event.status != EventStatus.PUBLISHED) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트 티켓만 리셀 등록할 수 있습니다.")
         if (ticket.status != TicketStatus.SOLD) throw BusinessException(ErrorCode.CONFLICT, "판매된 미사용 티켓만 리셀 등록할 수 있습니다.")
         if (!ticket.resaleEnabled) throw BusinessException(ErrorCode.CONFLICT, "이 티켓 구역은 리셀을 허용하지 않습니다.")
         if (event.resaleStart == null || event.resaleEnd == null || now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd)) {
@@ -68,7 +68,7 @@ class ResaleService(
         val now = Instant.now()
         if (listing.status != ResaleListingStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 리셀 등록이 아닙니다.")
         if (listing.seller.id == userId) throw BusinessException(ErrorCode.INVALID_REQUEST, "본인 티켓은 구매할 수 없습니다.")
-        if (event.status != EventStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 리셀 티켓만 구매할 수 있습니다.")
+        if (event.status != EventStatus.PUBLISHED) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 리셀 티켓만 구매할 수 있습니다.")
         if (event.resaleStart == null || event.resaleEnd == null || now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd)) {
             throw BusinessException(ErrorCode.CONFLICT, "리셀 가능 기간이 아닙니다.")
         }

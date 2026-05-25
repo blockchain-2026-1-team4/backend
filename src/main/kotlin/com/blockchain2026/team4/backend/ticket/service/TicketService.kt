@@ -137,7 +137,7 @@ class TicketService(
         val ticket = findEntity(ticketId)
         val event = ticket.event
         val now = Instant.now()
-        if (event.status != EventStatus.ACTIVE) {
+        if (event.status != EventStatus.PUBLISHED) {
             throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 티켓만 구매할 수 있습니다.")
         }
         val saleStart = ticket.saleStartAt ?: event.primarySaleStart
@@ -175,9 +175,9 @@ class TicketService(
     @Transactional(readOnly = true)
     fun validity(ticketId: UUID): TicketValidityDto {
         val ticket = findEntity(ticketId)
-        val valid = ticket.event.status == EventStatus.ACTIVE && ticket.owner != null && ticket.status in setOf(TicketStatus.SOLD, TicketStatus.LISTED)
+        val valid = ticket.event.status == EventStatus.PUBLISHED && ticket.owner != null && ticket.status in setOf(TicketStatus.SOLD, TicketStatus.LISTED)
         val reason = when {
-            ticket.event.status != EventStatus.ACTIVE -> "이벤트가 비활성 상태입니다."
+            ticket.event.status != EventStatus.PUBLISHED -> "이벤트가 비활성 상태입니다."
             ticket.owner == null -> "아직 판매되지 않은 티켓입니다."
             ticket.status == TicketStatus.USED -> "이미 사용 완료된 티켓입니다."
             ticket.status !in setOf(TicketStatus.SOLD, TicketStatus.LISTED) -> "유효한 소유 상태가 아닙니다."

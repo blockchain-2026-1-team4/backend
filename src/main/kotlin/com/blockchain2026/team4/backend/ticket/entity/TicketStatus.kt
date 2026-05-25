@@ -5,4 +5,5 @@ enum class TicketStatus {
     SOLD,
     LISTED,
     USED,
+    CANCELLED,
 }

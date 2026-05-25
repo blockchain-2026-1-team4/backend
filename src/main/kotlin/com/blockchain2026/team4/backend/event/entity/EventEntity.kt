@@ -95,7 +95,7 @@ class EventEntity(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    var status: EventStatus = EventStatus.ACTIVE,
+    var status: EventStatus = EventStatus.PUBLISHED,
 
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),

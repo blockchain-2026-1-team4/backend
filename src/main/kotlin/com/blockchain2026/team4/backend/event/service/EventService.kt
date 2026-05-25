@@ -259,17 +259,17 @@ class EventService(
         if (actor.id != event.organizer.id && !isAdmin) {
             throw BusinessException(ErrorCode.FORBIDDEN, "이벤트 상태 변경 권한이 없습니다.")
         }
-        if (!isAdmin && event.adminCanceled && command.status != EventStatus.CANCELED) {
+        if (!isAdmin && event.adminCanceled && command.status != EventStatus.CANCELLED) {
             throw BusinessException(ErrorCode.FORBIDDEN, "관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.")
         }
 
         event.status = command.status
-        if (command.status == EventStatus.CANCELED) {
+        if (command.status == EventStatus.CANCELLED) {
             event.adminCanceled = event.adminCanceled || isAdmin
         } else if (isAdmin) {
             event.adminCanceled = false
         }
-        val active = command.status == EventStatus.ACTIVE
+        val active = command.status == EventStatus.PUBLISHED
         event.contractEventId?.let {
             val submission = trustTicketGateway.setEventStatus(it, active)
             blockchainTransactionService.record(submission)
@@ -297,7 +297,7 @@ class EventService(
         eventRepository.findById(eventId)
             .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "이벤트를 찾을 수 없습니다.") }
 
-    fun countActive(): Long = eventRepository.countByStatus(EventStatus.ACTIVE)
+    fun countActive(): Long = eventRepository.countByStatus(EventStatus.PUBLISHED)
 
     @Transactional
     fun registerPrimarySale(event: EventEntity) {

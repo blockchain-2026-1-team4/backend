@@ -311,3 +311,28 @@ databaseChangeLog:
                   type: timestamp with time zone
                   constraints:
                     nullable: false
+
+  - changeSet:
+      id: 010-normalize-event-ticket-status
+      author: codex
+      changes:
+        - sql:
+            sql: |
+              UPDATE events
+              SET status = CASE
+                WHEN status = 'DRAFT' THEN 'DRAFT'
+                WHEN status IN ('PUBLISHED', 'ACTIVE', 'SALES_OPEN', 'SALES_CLOSED', 'ENDED') THEN 'PUBLISHED'
+                WHEN status = 'INACTIVE' THEN 'INACTIVE'
+                WHEN status IN ('CANCELED', 'CANCELLED') THEN 'CANCELLED'
+                ELSE 'PUBLISHED'
+              END;
+              UPDATE tickets
+              SET status = CASE
+                WHEN status = 'AVAILABLE' THEN 'AVAILABLE'
+                WHEN status IN ('SOLD', 'OWNED') THEN 'SOLD'
+                WHEN status = 'LISTED' THEN 'LISTED'
+                WHEN status = 'USED' THEN 'USED'
+                WHEN status = 'ISSUED' THEN 'AVAILABLE'
+                WHEN status IN ('EXPIRED', 'CANCELED', 'CANCELLED') THEN 'CANCELLED'
+                ELSE status
+              END;
