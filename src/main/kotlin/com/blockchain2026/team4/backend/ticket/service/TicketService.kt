@@ -37,6 +37,9 @@ class TicketService(
             throw BusinessException(ErrorCode.FORBIDDEN, "해당 이벤트의 주최자만 티켓을 발행할 수 있습니다.")
         }
         command.ticketSections.forEach { section ->
+            if (section.sectionName.isBlank() || section.priceWei <= BigInteger.ZERO) {
+                throw BusinessException(ErrorCode.INVALID_REQUEST, "좌석 구역과 가격을 확인해주세요.")
+            }
             if (section.quantity <= 0 || section.startNumber <= 0) {
                 throw BusinessException(ErrorCode.INVALID_REQUEST, "발행 수량과 시작 번호를 확인해주세요.")
             }
@@ -56,6 +59,19 @@ class TicketService(
         }
         if (issueItems.isEmpty()) {
             throw BusinessException(ErrorCode.INVALID_REQUEST, "발행할 티켓 정보가 필요합니다.")
+        }
+        val duplicatedInRequest = issueItems
+            .groupingBy { it.first }
+            .eachCount()
+            .filterValues { it > 1 }
+            .keys
+        if (duplicatedInRequest.isNotEmpty()) {
+            throw BusinessException(ErrorCode.CONFLICT, "중복된 좌석 번호가 있습니다: ${duplicatedInRequest.first()}")
+        }
+        val existingSeatInfos = ticketRepository.findAllByEventId(eventId).map { it.seatInfo }.toSet()
+        val duplicatedExisting = issueItems.map { it.first }.firstOrNull { it in existingSeatInfos }
+        if (duplicatedExisting != null) {
+            throw BusinessException(ErrorCode.CONFLICT, "이미 발행된 좌석 번호입니다: $duplicatedExisting")
         }
 
         val existing = ticketRepository.countByEventId(eventId)
