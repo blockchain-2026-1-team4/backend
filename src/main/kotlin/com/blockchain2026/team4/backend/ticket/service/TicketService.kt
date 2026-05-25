@@ -106,6 +106,32 @@ class TicketService(
     }
 
     @Transactional
+    fun cancelIssuedTickets(organizerId: UUID, eventId: UUID, ticketIds: List<UUID>): List<TicketDto> {
+        val event = eventService.findEntity(eventId)
+        if (event.organizer.id != organizerId) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "해당 이벤트의 주최자만 티켓 발행을 취소할 수 있습니다.")
+        }
+        if (ticketIds.isEmpty()) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "취소할 티켓 정보가 필요합니다.")
+        }
+
+        val tickets = ticketRepository.findAllById(ticketIds)
+        if (tickets.size != ticketIds.toSet().size) {
+            throw BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "취소할 티켓을 찾을 수 없습니다.")
+        }
+        val invalid = tickets.firstOrNull {
+            it.event.id != eventId || it.status != TicketStatus.AVAILABLE || it.owner != null
+        }
+        if (invalid != null) {
+            throw BusinessException(ErrorCode.CONFLICT, "판매되었거나 다른 이벤트의 티켓은 발행 취소할 수 없습니다.")
+        }
+
+        val canceled = ticketMapper.toDtos(tickets)
+        ticketRepository.deleteAll(tickets)
+        return canceled
+    }
+
+    @Transactional
     fun purchaseTicket(userId: UUID, ticketId: UUID): TicketDto {
         val user = userService.findEntity(userId)
         val ticket = findEntity(ticketId)

@@ -23,6 +23,11 @@ data class TicketSectionIssueRequest(
     val quantity: Int,
 )
 
+data class TicketCancelIssuedRequest(
+    @field:NotEmpty
+    val ticketIds: List<UUID>,
+)
+
 data class TicketPurchaseRequest(
     val memo: String? = null,
 )

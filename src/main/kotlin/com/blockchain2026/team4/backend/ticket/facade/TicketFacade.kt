@@ -1,5 +1,6 @@
 package com.blockchain2026.team4.backend.ticket.facade
 
+import com.blockchain2026.team4.backend.ticket.controller.request.TicketCancelIssuedRequest
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
@@ -39,6 +40,9 @@ class TicketFacade(
                 ),
             ),
         )
+
+    fun cancelIssuedTickets(organizerId: UUID, eventId: UUID, request: TicketCancelIssuedRequest): List<TicketResponse> =
+        ticketApiMapper.toResponses(ticketService.cancelIssuedTickets(organizerId, eventId, request.ticketIds))
 
     fun purchase(userId: UUID, ticketId: UUID): TicketResponse =
         ticketApiMapper.toResponse(ticketService.purchaseTicket(userId, ticketId))
