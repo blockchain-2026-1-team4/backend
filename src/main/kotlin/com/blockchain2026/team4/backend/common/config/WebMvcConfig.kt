@@ -1,6 +1,7 @@
 package com.blockchain2026.team4.backend.common.config
 
 import org.springframework.context.annotation.Configuration
+import org.springframework.web.servlet.config.annotation.CorsRegistry
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
@@ -19,5 +20,12 @@ class WebMvcConfig(
         // Spring requires resource locations to end with '/' to serve directory contents.
         registry.addResourceHandler("${appProperties.storage.publicUrlPrefix.trimEnd('/')}/**")
             .addResourceLocations("${directory.toUri()}/")
+    }
+
+    override fun addCorsMappings(registry: CorsRegistry) {
+        // Allow browsers (Expo web, Swagger UI) to load uploaded images cross-origin.
+        registry.addMapping("${appProperties.storage.publicUrlPrefix.trimEnd('/')}/**")
+            .allowedOriginPatterns("*")
+            .allowedMethods("GET")
     }
 }
