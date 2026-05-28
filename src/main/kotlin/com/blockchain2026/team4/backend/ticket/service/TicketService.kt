@@ -137,6 +137,9 @@ class TicketService(
         val ticket = findEntity(ticketId)
         val event = ticket.event
         val now = Instant.now()
+        if (user.walletAddress.isNullOrBlank()) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "지갑 로그인 후 티켓을 구매할 수 있습니다.")
+        }
         if (event.status != EventStatus.PUBLISHED) {
             throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 티켓만 구매할 수 있습니다.")
         }

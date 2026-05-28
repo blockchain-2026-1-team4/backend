@@ -66,6 +66,9 @@ class ResaleService(
         val listing = findEntity(listingId)
         val event = listing.ticket.event
         val now = Instant.now()
+        if (buyer.walletAddress.isNullOrBlank()) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "지갑 로그인 후 리셀 티켓을 구매할 수 있습니다.")
+        }
         if (listing.status != ResaleListingStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 리셀 등록이 아닙니다.")
         if (listing.seller.id == userId) throw BusinessException(ErrorCode.INVALID_REQUEST, "본인 티켓은 구매할 수 없습니다.")
         if (event.status != EventStatus.PUBLISHED) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 리셀 티켓만 구매할 수 있습니다.")
