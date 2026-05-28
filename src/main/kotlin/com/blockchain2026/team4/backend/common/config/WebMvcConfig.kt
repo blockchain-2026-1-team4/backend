@@ -16,7 +16,8 @@ class WebMvcConfig(
 
     override fun addResourceHandlers(registry: ResourceHandlerRegistry) {
         val directory = Path.of(appProperties.storage.imageDirectory).toAbsolutePath().normalize()
+        // Spring requires resource locations to end with '/' to serve directory contents.
         registry.addResourceHandler("${appProperties.storage.publicUrlPrefix.trimEnd('/')}/**")
-            .addResourceLocations(directory.toUri().toString())
+            .addResourceLocations("${directory.toUri()}/")
     }
 }
