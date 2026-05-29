@@ -83,6 +83,20 @@ class UserService(
         )
     }
 
+    @Transactional(readOnly = true)
+    fun searchUsers(query: String, page: Int, size: Int): PageResponse<UserDto> {
+        val pageable = PageRequest.of(page, size)
+        val users = userRepository.searchByEmailOrDisplayName(query.trim(), pageable)
+        return PageResponse(
+            items = users.content.map(userMapper::toDto),
+            page = users.number,
+            size = users.size,
+            totalElements = users.totalElements,
+            totalPages = users.totalPages,
+            hasNext = users.hasNext(),
+        )
+    }
+
     @Transactional
     fun grantRole(userId: UUID, role: UserRole): UserDto {
         val entity = findEntity(userId)

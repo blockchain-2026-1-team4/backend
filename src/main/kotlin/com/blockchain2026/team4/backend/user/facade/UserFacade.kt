@@ -33,6 +33,18 @@ class UserFacade(
         )
     }
 
+    fun searchUsers(query: String, size: Int): PageResponse<UserResponse> {
+        val users = userService.searchUsers(query, 0, size)
+        return PageResponse(
+            items = userApiMapper.toResponses(users.items),
+            page = users.page,
+            size = users.size,
+            totalElements = users.totalElements,
+            totalPages = users.totalPages,
+            hasNext = users.hasNext,
+        )
+    }
+
     fun suspend(userId: UUID): UserResponse = userApiMapper.toResponse(userService.suspend(userId))
 
     fun activate(userId: UUID): UserResponse = userApiMapper.toResponse(userService.activate(userId))

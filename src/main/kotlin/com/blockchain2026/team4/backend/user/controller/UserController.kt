@@ -46,6 +46,14 @@ class UserController(
         @RequestParam(required = false) status: UserStatus?,
     ): PageResponse<UserResponse> = userFacade.listUsers(page, size, status)
 
+    @Operation(summary = "사용자 검색", description = "이메일 또는 표시 이름으로 사용자를 검색합니다. 주최자 이상 접근 가능합니다.")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
+    @GetMapping("/search")
+    fun searchUsers(
+        @RequestParam query: String,
+        @RequestParam(defaultValue = "10") size: Int,
+    ): PageResponse<UserResponse> = userFacade.searchUsers(query, size)
+
     @Operation(summary = "사용자 정지", description = "관리자가 사용자를 정지 상태로 변경합니다.")
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{userId}/suspend")
