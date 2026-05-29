@@ -322,8 +322,12 @@ class EventService(
         if (existing == null) {
             event.contractEventId?.let { contractEventId ->
                 validator.walletAddress?.let { wallet ->
-                    val submission = trustTicketGateway.addEventValidator(contractEventId, wallet)
-                    blockchainTransactionService.record(submission)
+                    try {
+                        val submission = trustTicketGateway.addEventValidator(contractEventId, wallet)
+                        blockchainTransactionService.record(submission)
+                    } catch (e: Exception) {
+                        // 블록체인 동기화 실패는 DB 등록을 취소하지 않음 — 추후 수동 조정 필요
+                    }
                 }
             }
         }
