@@ -32,12 +32,13 @@ class UserService(
         userRepository.findByWalletAddressIgnoreCase(walletAddress.normalizeWallet())?.let(userMapper::toDto)
 
     @Transactional
-    fun getOrCreateWalletUser(walletAddress: String): UserDto {
+    fun getOrCreateWalletUser(walletAddress: String): Pair<UserDto, Boolean> {
         val normalizedWallet = walletAddress.normalizeWallet()
-        val entity = userRepository.findByWalletAddressIgnoreCase(normalizedWallet)
+        val existing = userRepository.findByWalletAddressIgnoreCase(normalizedWallet)
+        val entity = existing
             ?: userRepository.save(UserEntity(walletAddress = normalizedWallet, roles = mutableSetOf(UserRole.USER)))
         ensureActive(entity)
-        return userMapper.toDto(entity)
+        return userMapper.toDto(entity) to (existing == null)
     }
 
     @Transactional

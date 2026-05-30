@@ -102,6 +102,11 @@ class TicketService(
                 ),
             )
         }
+
+        if (command.ticketSections.any { it.resaleEnabled }) {
+            event.resaleAllowed = true
+        }
+
         return ticketMapper.toDtos(saved)
     }
 

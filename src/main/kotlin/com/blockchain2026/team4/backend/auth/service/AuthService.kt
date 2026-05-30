@@ -70,8 +70,8 @@ class AuthService(
         }
 
         nonceEntity.consumedAt = Instant.now()
-        val user = userService.getOrCreateWalletUser(normalizedWallet)
-        return issueTokens(user)
+        val (user, isNewUser) = userService.getOrCreateWalletUser(normalizedWallet)
+        return issueTokens(user, isNewUser)
     }
 
     @Transactional
@@ -91,11 +91,12 @@ class AuthService(
         return issueTokens(user)
     }
 
-    private fun issueTokens(user: UserDto): AuthTokensDto =
+    private fun issueTokens(user: UserDto, isNewUser: Boolean = false): AuthTokensDto =
         AuthTokensDto(
             accessToken = jwtProvider.issueAccessToken(user),
             refreshToken = jwtProvider.issueRefreshToken(user),
             user = user,
+            isNewUser = isNewUser,
         )
 
     private fun generateNonce(): String {
