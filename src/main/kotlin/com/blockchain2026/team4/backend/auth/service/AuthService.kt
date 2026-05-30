@@ -11,6 +11,7 @@ import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
 import com.blockchain2026.team4.backend.common.security.JwtProvider
 import com.blockchain2026.team4.backend.user.dto.UserDto
+import com.blockchain2026.team4.backend.user.entity.UserRole
 import com.blockchain2026.team4.backend.user.service.UserService
 import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -75,18 +76,15 @@ class AuthService(
 
     @Transactional
     fun emailRegister(command: EmailRegisterCommand): AuthTokensDto {
-        val user = userService.createEmailUser(
-            email = command.email,
-            passwordHash = passwordEncoder.encode(command.password)
-                ?: throw BusinessException(ErrorCode.INTERNAL_ERROR, "비밀번호 암호화에 실패했습니다."),
-            displayName = command.displayName,
-        )
-        return issueTokens(user)
+        throw BusinessException(ErrorCode.FORBIDDEN, "이메일 회원가입은 지원하지 않습니다.")
     }
 
     @Transactional(readOnly = true)
     fun emailLogin(command: EmailLoginCommand): AuthTokensDto {
         val (user, passwordHash) = userService.findEmailLoginUser(command.email)
+        if (UserRole.ADMIN !in user.roles) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "ADMIN 계정만 이메일 로그인이 가능합니다.")
+        }
         if (!passwordEncoder.matches(command.password, passwordHash)) {
             throw BadCredentialsException("Invalid credentials")
         }
