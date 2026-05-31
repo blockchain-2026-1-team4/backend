@@ -5,4 +5,5 @@ enum class DisputeStatus {
     REVIEWING,
     RESOLVED,
     REJECTED,
+    CANCELED,
 }

@@ -5,6 +5,7 @@ import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransaction
 import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
+import com.blockchain2026.team4.backend.event.entity.EventEntity
 import com.blockchain2026.team4.backend.event.entity.EventStatus
 import com.blockchain2026.team4.backend.resale.dto.ResaleCreateCommand
 import com.blockchain2026.team4.backend.resale.dto.ResaleListingDto
@@ -39,13 +40,15 @@ class ResaleService(
         val now = Instant.now()
 
         if (ticket.owner?.id != userId) throw BusinessException(ErrorCode.FORBIDDEN, "소유한 티켓만 리셀 등록할 수 있습니다.")
-        if (event.status != EventStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트 티켓만 리셀 등록할 수 있습니다.")
+        if (event.status != EventStatus.PUBLISHED) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트 티켓만 리셀 등록할 수 있습니다.")
+        if (isEventEnded(event, now)) throw BusinessException(ErrorCode.CONFLICT, "종료된 이벤트의 티켓은 리셀 등록할 수 없습니다.")
         if (ticket.status != TicketStatus.SOLD) throw BusinessException(ErrorCode.CONFLICT, "판매된 미사용 티켓만 리셀 등록할 수 있습니다.")
-        if (!event.resaleAllowed) throw BusinessException(ErrorCode.CONFLICT, "이 이벤트는 리셀을 허용하지 않습니다.")
-        if (event.resaleStart == null || event.resaleEnd == null || now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd)) {
+        if (!ticket.resaleEnabled) throw BusinessException(ErrorCode.CONFLICT, "이 티켓 구역은 리셀을 허용하지 않습니다.")
+        if (event.resaleStart != null && event.resaleEnd != null &&
+            (now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd))) {
             throw BusinessException(ErrorCode.CONFLICT, "리셀 가능 기간이 아닙니다.")
         }
-        val maxPrice = ticket.originalPriceWei.multiply(event.maxResalePriceRate.toBigInteger()).divide(BigInteger.valueOf(10_000))
+        val maxPrice = ticket.originalPriceWei.multiply(ticket.resaleCapRate.toBigInteger()).divide(BigInteger.valueOf(10_000))
         if (command.priceWei > maxPrice) throw BusinessException(ErrorCode.INVALID_REQUEST, "리셀 가격 상한을 초과했습니다.")
 
         ticket.contractTokenId?.let {
@@ -66,10 +69,18 @@ class ResaleService(
         val listing = findEntity(listingId)
         val event = listing.ticket.event
         val now = Instant.now()
+        if (buyer.walletAddress.isNullOrBlank()) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "지갑 로그인 후 리셀 티켓을 구매할 수 있습니다.")
+        }
         if (listing.status != ResaleListingStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 리셀 등록이 아닙니다.")
+        if (isEventEnded(event, now)) {
+            closeListingForEndedEvent(listing)
+            throw BusinessException(ErrorCode.CONFLICT, "공연이 종료되어 판매가 종료된 리셀 티켓입니다.")
+        }
         if (listing.seller.id == userId) throw BusinessException(ErrorCode.INVALID_REQUEST, "본인 티켓은 구매할 수 없습니다.")
-        if (event.status != EventStatus.ACTIVE) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 리셀 티켓만 구매할 수 있습니다.")
-        if (event.resaleStart == null || event.resaleEnd == null || now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd)) {
+        if (event.status != EventStatus.PUBLISHED) throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트의 리셀 티켓만 구매할 수 있습니다.")
+        if (event.resaleStart != null && event.resaleEnd != null &&
+            (now.isBefore(event.resaleStart) || now.isAfter(event.resaleEnd))) {
             throw BusinessException(ErrorCode.CONFLICT, "리셀 가능 기간이 아닙니다.")
         }
         if (listing.ticket.status != TicketStatus.LISTED) throw BusinessException(ErrorCode.CONFLICT, "리셀 등록 중인 티켓이 아닙니다.")
@@ -99,11 +110,18 @@ class ResaleService(
         return resaleListingMapper.toDto(listing)
     }
 
-    @Transactional(readOnly = true)
-    fun get(listingId: UUID): ResaleListingDto = resaleListingMapper.toDto(findEntity(listingId))
+    @Transactional
+    fun get(listingId: UUID): ResaleListingDto {
+        val listing = findEntity(listingId)
+        if (listing.status == ResaleListingStatus.ACTIVE && isEventEnded(listing.ticket.event)) {
+            closeListingForEndedEvent(listing)
+        }
+        return resaleListingMapper.toDto(listing)
+    }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun list(page: Int, size: Int): PageResponse<ResaleListingDto> {
+        closeEndedActiveListings()
         val listings = resaleListingRepository.findAllByStatus(ResaleListingStatus.ACTIVE, PageRequest.of(page, size))
         return PageResponse(
             items = listings.content.map(resaleListingMapper::toDto),
@@ -115,10 +133,15 @@ class ResaleService(
         )
     }
 
-    fun countActive(): Long = resaleListingRepository.countByStatus(ResaleListingStatus.ACTIVE)
+    @Transactional
+    fun countActive(): Long {
+        closeEndedActiveListings()
+        return resaleListingRepository.countByStatus(ResaleListingStatus.ACTIVE)
+    }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun listTransactions(page: Int, size: Int, status: ResaleListingStatus?): PageResponse<ResaleListingDto> {
+        closeEndedActiveListings()
         val pageable = PageRequest.of(page, size)
         val listings = status?.let { resaleListingRepository.findAllByStatus(it, pageable) }
             ?: resaleListingRepository.findAllByStatusNot(ResaleListingStatus.ACTIVE, pageable)
@@ -141,4 +164,19 @@ class ResaleService(
     fun findEntity(listingId: UUID): ResaleListingEntity =
         resaleListingRepository.findById(listingId)
             .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "리셀 등록을 찾을 수 없습니다.") }
+
+    private fun closeEndedActiveListings(now: Instant = Instant.now()) {
+        resaleListingRepository.findAllByStatus(ResaleListingStatus.ACTIVE)
+            .filter { isEventEnded(it.ticket.event, now) }
+            .forEach(::closeListingForEndedEvent)
+    }
+
+    private fun closeListingForEndedEvent(listing: ResaleListingEntity) {
+        if (listing.status == ResaleListingStatus.ACTIVE) {
+            listing.status = ResaleListingStatus.CLOSED
+        }
+    }
+
+    private fun isEventEnded(event: EventEntity, now: Instant = Instant.now()): Boolean =
+        event.eventEndAt.isBefore(now)
 }

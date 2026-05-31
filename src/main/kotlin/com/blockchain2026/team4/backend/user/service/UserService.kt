@@ -32,12 +32,13 @@ class UserService(
         userRepository.findByWalletAddressIgnoreCase(walletAddress.normalizeWallet())?.let(userMapper::toDto)
 
     @Transactional
-    fun getOrCreateWalletUser(walletAddress: String): UserDto {
+    fun getOrCreateWalletUser(walletAddress: String): Pair<UserDto, Boolean> {
         val normalizedWallet = walletAddress.normalizeWallet()
-        val entity = userRepository.findByWalletAddressIgnoreCase(normalizedWallet)
+        val existing = userRepository.findByWalletAddressIgnoreCase(normalizedWallet)
+        val entity = existing
             ?: userRepository.save(UserEntity(walletAddress = normalizedWallet, roles = mutableSetOf(UserRole.USER)))
         ensureActive(entity)
-        return userMapper.toDto(entity)
+        return userMapper.toDto(entity) to (existing == null)
     }
 
     @Transactional
@@ -83,10 +84,45 @@ class UserService(
         )
     }
 
+    @Transactional(readOnly = true)
+    fun searchUsers(query: String, page: Int, size: Int): PageResponse<UserDto> {
+        val pageable = PageRequest.of(page, size)
+        val users = userRepository.searchByEmailOrDisplayName(query.trim(), pageable)
+        return PageResponse(
+            items = users.content.map(userMapper::toDto),
+            page = users.number,
+            size = users.size,
+            totalElements = users.totalElements,
+            totalPages = users.totalPages,
+            hasNext = users.hasNext(),
+        )
+    }
+
     @Transactional
     fun grantRole(userId: UUID, role: UserRole): UserDto {
         val entity = findEntity(userId)
         entity.roles.add(role)
+        return userMapper.toDto(entity)
+    }
+
+    @Transactional
+    fun revokeRole(userId: UUID, role: UserRole): UserDto {
+        val entity = findEntity(userId)
+        if (role == UserRole.USER) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "USER 기본 권한은 회수할 수 없습니다.")
+        }
+        entity.roles.remove(role)
+        return userMapper.toDto(entity)
+    }
+
+    @Transactional
+    fun grantOrganizer(userId: UUID): UserDto {
+        val entity = findEntity(userId)
+        entity.roles.add(UserRole.ORGANIZER)
+        entity.walletAddress?.let {
+            val submission = trustTicketGateway.addOrganizer(it)
+            blockchainTransactionService.record(submission)
+        }
         return userMapper.toDto(entity)
     }
 

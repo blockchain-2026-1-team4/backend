@@ -156,6 +156,23 @@ databaseChangeLog:
                     nullable: false
 
   - changeSet:
+      id: 009-ticket-round-section-sale-policy
+      author: codex
+      changes:
+        - addColumn:
+            tableName: tickets
+            columns:
+              - column:
+                  name: event_round_id
+                  type: uuid
+              - column:
+                  name: sale_start_at
+                  type: timestamp with time zone
+              - column:
+                  name: sale_end_at
+                  type: timestamp with time zone
+
+  - changeSet:
       id: 006-events-admin-cancel-policy
       author: codex
       changes:
@@ -168,3 +185,154 @@ databaseChangeLog:
                   defaultValueBoolean: false
                   constraints:
                     nullable: false
+
+  - changeSet:
+      id: 007-events-sessions-ticket-sections
+      author: codex
+      changes:
+        - addColumn:
+            tableName: events
+            columns:
+              - column:
+                  name: event_start_at
+                  type: timestamp with time zone
+              - column:
+                  name: event_end_at
+                  type: timestamp with time zone
+        - update:
+            tableName: events
+            columns:
+              - column:
+                  name: event_start_at
+                  valueComputed: event_at
+              - column:
+                  name: event_end_at
+                  valueComputed: event_at
+        - addNotNullConstraint:
+            tableName: events
+            columnName: event_start_at
+            columnDataType: timestamp with time zone
+        - addNotNullConstraint:
+            tableName: events
+            columnName: event_end_at
+            columnDataType: timestamp with time zone
+        - addColumn:
+            tableName: tickets
+            columns:
+              - column:
+                  name: section_name
+                  type: varchar(80)
+                  defaultValue: GENERAL
+                  constraints:
+                    nullable: false
+              - column:
+                  name: resale_enabled
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: resale_cap_rate
+                  type: int
+                  defaultValueNumeric: 10000
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 008-event-rounds
+      author: codex
+      changes:
+        - addColumn:
+            tableName: events
+            columns:
+              - column:
+                  name: venue_place_id
+                  type: varchar(120)
+        - createTable:
+            tableName: event_rounds
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: event_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_event_rounds_event
+                    references: events(id)
+                    deleteCascade: true
+              - column:
+                  name: title
+                  type: varchar(80)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: event_date
+                  type: date
+                  constraints:
+                    nullable: false
+              - column:
+                  name: start_time
+                  type: time
+                  constraints:
+                    nullable: false
+              - column:
+                  name: end_time
+                  type: time
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sale_start_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sale_end_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: use_global_sale_period
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 010-normalize-event-ticket-status
+      author: codex
+      changes:
+        - sql:
+            sql: |
+              UPDATE events
+              SET status = CASE
+                WHEN status = 'DRAFT' THEN 'DRAFT'
+                WHEN status IN ('PUBLISHED', 'ACTIVE', 'SALES_OPEN', 'SALES_CLOSED', 'ENDED') THEN 'PUBLISHED'
+                WHEN status = 'INACTIVE' THEN 'INACTIVE'
+                WHEN status IN ('CANCELED', 'CANCELLED') THEN 'CANCELLED'
+                ELSE 'PUBLISHED'
+              END;
+              UPDATE tickets
+              SET status = CASE
+                WHEN status = 'AVAILABLE' THEN 'AVAILABLE'
+                WHEN status IN ('SOLD', 'OWNED') THEN 'SOLD'
+                WHEN status = 'LISTED' THEN 'LISTED'
+                WHEN status = 'USED' THEN 'USED'
+                WHEN status = 'ISSUED' THEN 'AVAILABLE'
+                WHEN status IN ('EXPIRED', 'CANCELED', 'CANCELLED') THEN 'CANCELLED'
+                ELSE status
+              END;

@@ -2,6 +2,7 @@ package com.blockchain2026.team4.backend.ticket.controller
 
 import com.blockchain2026.team4.backend.common.security.AuthPrincipal
 import com.blockchain2026.team4.backend.common.security.CurrentUser
+import com.blockchain2026.team4.backend.ticket.controller.request.TicketCancelIssuedRequest
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
@@ -32,6 +33,15 @@ class TicketController(
         @PathVariable eventId: UUID,
         @Valid @RequestBody request: TicketIssueRequest,
     ): List<TicketResponse> = ticketFacade.issueTickets(principal.userId, eventId, request)
+
+    @Operation(summary = "직전 발행 티켓 취소", description = "주최자가 방금 발행한 미판매 티켓을 삭제합니다.")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    @PostMapping("/events/{eventId}/tickets/cancel-issued")
+    fun cancelIssuedTickets(
+        @CurrentUser principal: AuthPrincipal,
+        @PathVariable eventId: UUID,
+        @Valid @RequestBody request: TicketCancelIssuedRequest,
+    ): List<TicketResponse> = ticketFacade.cancelIssuedTickets(principal.userId, eventId, request)
 
     @Operation(summary = "이벤트 티켓 목록", description = "특정 이벤트에 발행된 티켓 목록과 현재 판매 상태를 조회합니다.")
     @GetMapping("/events/{eventId}/tickets")

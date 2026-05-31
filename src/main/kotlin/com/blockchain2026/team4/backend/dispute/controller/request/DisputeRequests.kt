@@ -16,6 +16,14 @@ data class DisputeCreateRequest(
     val description: String,
 )
 
+data class DisputeUpdateRequest(
+    val type: DisputeType,
+
+    @field:NotBlank
+    @field:Size(max = 2000)
+    val description: String,
+)
+
 data class DisputeReviewRequest(
     val status: DisputeStatus,
 

@@ -11,4 +11,16 @@ interface DisputeRepository : JpaRepository<DisputeEntity, UUID> {
     fun findAllByReporterId(reporterId: UUID, pageable: Pageable): Page<DisputeEntity>
 
     fun findAllByStatus(status: DisputeStatus, pageable: Pageable): Page<DisputeEntity>
+
+    fun existsByReporterIdAndResaleListingIdAndStatusIn(
+        reporterId: UUID,
+        resaleListingId: UUID,
+        statuses: Collection<DisputeStatus>,
+    ): Boolean
+
+    fun existsByReporterIdAndTicketIdAndStatusIn(
+        reporterId: UUID,
+        ticketId: UUID,
+        statuses: Collection<DisputeStatus>,
+    ): Boolean
 }
