@@ -7,6 +7,7 @@ data class EventValidatorResponse(
     val id: UUID,
     val eventId: UUID,
     val validatorId: UUID,
+    val validatorDisplayName: String?,
     val validatorWalletAddress: String?,
     val validatorEmail: String?,
     val createdAt: Instant,
