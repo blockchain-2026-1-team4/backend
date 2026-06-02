@@ -7,6 +7,7 @@ import java.util.UUID
 data class OrganizerApplicationResponse(
     val id: UUID,
     val userId: UUID,
+    val userWalletAddress: String?,
     val businessName: String,
     val contactEmail: String,
     val description: String?,

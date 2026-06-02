@@ -1,9 +1,11 @@
 package com.blockchain2026.team4.backend.ticket.facade
 
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
+import com.blockchain2026.team4.backend.ticket.controller.request.TicketPurchaseRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
 import com.blockchain2026.team4.backend.ticket.dto.TicketIssueCommand
+import com.blockchain2026.team4.backend.ticket.dto.TicketPurchaseCommand
 import com.blockchain2026.team4.backend.ticket.mapper.TicketApiMapper
 import com.blockchain2026.team4.backend.ticket.service.TicketService
 import org.springframework.stereotype.Component
@@ -17,8 +19,8 @@ class TicketFacade(
     fun issueTickets(organizerId: UUID, eventId: UUID, request: TicketIssueRequest): List<TicketResponse> =
         ticketApiMapper.toResponses(ticketService.issueTickets(organizerId, eventId, TicketIssueCommand(request.seatInfos)))
 
-    fun purchase(userId: UUID, ticketId: UUID): TicketResponse =
-        ticketApiMapper.toResponse(ticketService.purchaseTicket(userId, ticketId))
+    fun purchase(userId: UUID, ticketId: UUID, request: TicketPurchaseRequest?): TicketResponse =
+        ticketApiMapper.toResponse(ticketService.purchaseTicket(userId, ticketId, TicketPurchaseCommand(request?.transactionHash)))
 
     fun get(ticketId: UUID): TicketResponse = ticketApiMapper.toResponse(ticketService.get(ticketId))
 

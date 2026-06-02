@@ -10,4 +10,5 @@ data class OrganizerApplicationCommand(
 
 data class OrganizerReviewCommand(
     val status: OrganizerApplicationStatus,
+    val transactionHash: String? = null,
 )

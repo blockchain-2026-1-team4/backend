@@ -19,4 +19,5 @@ data class OrganizerApplicationRequest(
 
 data class OrganizerReviewRequest(
     val status: OrganizerApplicationStatus,
+    val transactionHash: String? = null,
 )

@@ -3,6 +3,7 @@ package com.blockchain2026.team4.backend.event.service
 import com.blockchain2026.team4.backend.blockchain.dto.ContractEventCommand
 import com.blockchain2026.team4.backend.blockchain.gateway.TrustTicketGateway
 import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransactionService
+import com.blockchain2026.team4.backend.common.config.AppProperties
 import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
@@ -37,6 +38,7 @@ class EventService(
     private val userService: UserService,
     private val trustTicketGateway: TrustTicketGateway,
     private val blockchainTransactionService: BlockchainTransactionService,
+    private val appProperties: AppProperties,
     private val eventMapper: EventMapper,
     private val eventValidatorMapper: EventValidatorMapper,
 ) {
@@ -61,10 +63,14 @@ class EventService(
             ),
         )
         blockchainTransactionService.record(submission)
+        if (appProperties.blockchain.enabled && submission.contractEventId == null) {
+            throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "온체인 EventCreated 로그에서 eventId를 확인하지 못했습니다.")
+        }
 
         val event = eventRepository.save(
             EventEntity(
                 organizer = organizerEntity,
+                contractEventId = submission.contractEventId,
                 name = command.name,
                 description = command.description,
                 category = command.category,

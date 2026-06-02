@@ -8,5 +8,5 @@ data class TicketIssueRequest(
 )
 
 data class TicketPurchaseRequest(
-    val memo: String? = null,
+    val transactionHash: String? = null,
 )
