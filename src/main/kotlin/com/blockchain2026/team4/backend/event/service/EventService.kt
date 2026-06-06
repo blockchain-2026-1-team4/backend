@@ -65,6 +65,8 @@ class EventService(
             ),
         )
         blockchainTransactionService.record(submission)
+        val contractEventId = submission.resultId
+            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "생성된 이벤트의 컨트랙트 이벤트 ID를 확인할 수 없습니다.")
 
         val event = eventRepository.save(
             EventEntity(
@@ -88,6 +90,7 @@ class EventService(
                 maxResalePriceRate = command.maxResalePriceRate,
                 resaleStart = command.resaleStart,
                 resaleEnd = command.resaleEnd,
+                contractEventId = contractEventId,
             ),
         )
         val rounds = command.rounds.map {

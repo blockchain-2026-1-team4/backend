@@ -82,15 +82,18 @@ class TicketService(
         if (event.totalTicketCount > 0 && existing + issueItems.size > event.totalTicketCount) {
             throw BusinessException(ErrorCode.CONFLICT, "발행 가능한 티켓 수량을 초과했습니다.")
         }
+        val contractEventId = event.contractEventId
+            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "컨트랙트 이벤트 ID가 없는 이벤트입니다. 이벤트 생성 상태를 확인해주세요.")
 
         val saved = issueItems.map { (seatInfo, sectionName, sectionPolicy) ->
-            event.contractEventId?.let {
-                val submission = trustTicketGateway.mintTicket(it, seatInfo)
-                blockchainTransactionService.record(submission)
-            }
+            val submission = trustTicketGateway.mintTicket(contractEventId, seatInfo)
+            blockchainTransactionService.record(submission)
+            val contractTokenId = submission.resultId
+                ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "민팅된 티켓의 컨트랙트 토큰 ID를 확인할 수 없습니다.")
             ticketRepository.save(
                 TicketEntity(
                     event = event,
+                    contractTokenId = contractTokenId,
                     seatInfo = seatInfo,
                     sectionName = sectionName,
                     eventRoundId = sectionPolicy?.eventRoundId,
@@ -233,7 +236,8 @@ class TicketService(
     fun countUsed(): Long = ticketRepository.countByStatus(TicketStatus.USED)
 
     fun contractTokenId(ticket: TicketEntity): BigInteger =
-        ticket.contractTokenId ?: BigInteger.valueOf(ticket.id.mostSignificantBits and Long.MAX_VALUE)
+        ticket.contractTokenId
+            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "컨트랙트 토큰 ID가 없는 티켓입니다. 티켓 민팅 상태를 확인해주세요.")
 
     private fun String.normalizeWallet(): String = trim().lowercase()
 }

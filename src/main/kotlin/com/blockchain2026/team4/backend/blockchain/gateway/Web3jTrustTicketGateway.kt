@@ -13,16 +13,19 @@ import org.web3j.abi.FunctionReturnDecoder
 import org.web3j.abi.TypeReference
 import org.web3j.abi.datatypes.Address
 import org.web3j.abi.datatypes.Bool
+import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.Function
 import org.web3j.abi.datatypes.Type
 import org.web3j.abi.datatypes.Utf8String
 import org.web3j.abi.datatypes.generated.Uint256
+import org.web3j.abi.EventEncoder
 import org.web3j.crypto.Credentials
 import org.web3j.protocol.Web3j
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.request.Transaction
 import org.web3j.protocol.http.HttpService
 import org.web3j.tx.RawTransactionManager
+import org.web3j.tx.response.PollingTransactionReceiptProcessor
 import java.math.BigInteger
 
 @Component
@@ -44,7 +47,7 @@ class Web3jTrustTicketGateway(
         send("addEventValidator", listOf(Uint256(contractEventId), Address(validatorWallet)))
 
     override fun createEvent(command: ContractEventCommand): BlockchainSubmission =
-        send(
+        sendWithIndexedResult(
             "createEvent",
             listOf(
                 Utf8String(command.eventName),
@@ -58,13 +61,34 @@ class Web3jTrustTicketGateway(
                 Uint256(command.resaleStart),
                 Uint256(command.resaleEnd),
             ),
+            emittedEvent = Event(
+                "EventCreated",
+                listOf(
+                    object : TypeReference<Uint256>(true) {},
+                    object : TypeReference<Address>(true) {},
+                    object : TypeReference<Utf8String>() {},
+                ),
+            ),
+            resultTopicIndex = 1,
         )
 
     override fun setEventStatus(contractEventId: BigInteger, active: Boolean): BlockchainSubmission =
         send("setEventStatus", listOf(Uint256(contractEventId), Bool(active)))
 
     override fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission =
-        send("mintTicket", listOf(Uint256(contractEventId), Utf8String(seatInfo)))
+        sendWithIndexedResult(
+            "mintTicket",
+            listOf(Uint256(contractEventId), Utf8String(seatInfo)),
+            emittedEvent = Event(
+                "TicketMinted",
+                listOf(
+                    object : TypeReference<Uint256>(true) {},
+                    object : TypeReference<Uint256>(true) {},
+                    object : TypeReference<Utf8String>() {},
+                ),
+            ),
+            resultTopicIndex = 2,
+        )
 
     override fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission =
         send("purchaseTicket", listOf(Uint256(contractTokenId)), valueWei)
@@ -144,6 +168,26 @@ class Web3jTrustTicketGateway(
             transactionHash = result.transactionHash,
             status = BlockchainTransactionStatus.SUBMITTED,
         )
+    }
+
+    private fun sendWithIndexedResult(
+        action: String,
+        inputs: List<Type<*>>,
+        emittedEvent: Event,
+        resultTopicIndex: Int,
+    ): BlockchainSubmission {
+        val submission = send(action, inputs)
+        val transactionHash = submission.transactionHash
+            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "$action 트랜잭션 해시를 확인할 수 없습니다.")
+        val receipt = PollingTransactionReceiptProcessor(web3j, 1_000, 60)
+            .waitForTransactionReceipt(transactionHash)
+        val eventSignature = EventEncoder.encode(emittedEvent)
+        val resultTopic = receipt.logs
+            .firstOrNull { it.topics.firstOrNull()?.equals(eventSignature, ignoreCase = true) == true }
+            ?.topics
+            ?.getOrNull(resultTopicIndex)
+            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "$action 결과 ID를 확인할 수 없습니다.")
+        return submission.copy(resultId = BigInteger(resultTopic.removePrefix("0x"), 16))
     }
 
     private fun hexToBytes(value: String): ByteArray {
