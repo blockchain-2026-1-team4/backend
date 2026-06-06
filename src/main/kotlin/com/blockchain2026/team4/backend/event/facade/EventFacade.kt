@@ -11,6 +11,7 @@ import com.blockchain2026.team4.backend.event.controller.response.EventResponse
 import com.blockchain2026.team4.backend.event.controller.response.EventValidatorResponse
 import com.blockchain2026.team4.backend.event.dto.EventCreateCommand
 import com.blockchain2026.team4.backend.event.dto.EventResalePolicyCommand
+import com.blockchain2026.team4.backend.event.dto.EventRoundCommand
 import com.blockchain2026.team4.backend.event.dto.EventStatusCommand
 import com.blockchain2026.team4.backend.event.dto.EventUpdateCommand
 import com.blockchain2026.team4.backend.event.entity.EventStatus
@@ -19,6 +20,8 @@ import com.blockchain2026.team4.backend.event.mapper.EventValidatorApiMapper
 import com.blockchain2026.team4.backend.event.service.EventService
 import org.springframework.stereotype.Component
 import org.springframework.web.multipart.MultipartFile
+import java.math.BigInteger
+import java.time.Instant
 import java.util.UUID
 
 @Component
@@ -28,28 +31,65 @@ class EventFacade(
     private val eventValidatorApiMapper: EventValidatorApiMapper,
     private val localImageStorageService: LocalImageStorageService,
 ) {
-    fun create(organizerId: UUID, request: EventCreateRequest): EventResponse =
-        eventApiMapper.toResponse(
+    fun create(organizerId: UUID, request: EventCreateRequest): EventResponse {
+        val start = request.eventStartAt ?: request.startsAt ?: request.eventAt ?: Instant.now()
+        val end = request.eventEndAt ?: request.endsAt ?: request.eventAt?.plusSeconds(2 * 60 * 60) ?: start
+        val saleStart = request.primarySaleStart ?: request.salesStartAt ?: Instant.now()
+        val saleEnd = request.primarySaleEnd ?: request.salesEndAt ?: end
+        val rounds = if (request.rounds.isNotEmpty()) {
+            request.rounds.mapIndexed { index, round ->
+                val roundStartInstant = round.eventDate.atTime(round.startTime).atZone(java.time.ZoneId.systemDefault()).toInstant()
+                EventRoundCommand(
+                    title = round.title?.takeIf { it.isNotBlank() } ?: "${index + 1}회차",
+                    eventDate = round.eventDate,
+                    startTime = round.startTime,
+                    endTime = round.endTime,
+                    saleStartAt = if (round.useGlobalSalePeriod) saleStart else round.saleStartAt ?: saleStart,
+                    saleEndAt = if (round.useGlobalSalePeriod) saleEnd else round.saleEndAt ?: roundStartInstant,
+                    useGlobalSalePeriod = round.useGlobalSalePeriod,
+                )
+            }
+        } else {
+            val roundStart = start.atZone(java.time.ZoneId.systemDefault())
+            val roundEnd = end.atZone(java.time.ZoneId.systemDefault())
+            listOf(
+                EventRoundCommand(
+                    title = "1회차",
+                    eventDate = roundStart.toLocalDate(),
+                    startTime = roundStart.toLocalTime(),
+                    endTime = if (roundEnd.toLocalDate() == roundStart.toLocalDate()) roundEnd.toLocalTime() else java.time.LocalTime.of(23, 59),
+                    saleStartAt = saleStart,
+                    saleEndAt = saleEnd,
+                    useGlobalSalePeriod = true,
+                ),
+            )
+        }
+        return eventApiMapper.toResponse(
             eventService.create(
                 organizerId,
                 EventCreateCommand(
                     name = request.name,
                     description = request.description,
                     category = request.category,
-                    venue = request.venue,
+                    venue = request.location?.name?.takeIf { it.isNotBlank() } ?: request.venue,
+                    venuePlaceId = request.location?.placeId ?: request.venuePlaceId,
                     imageUrl = request.imageUrl,
-                    eventAt = request.eventAt,
-                    ticketPriceWei = request.ticketPriceWei,
-                    totalTicketCount = request.totalTicketCount,
-                    primarySaleStart = request.primarySaleStart,
-                    primarySaleEnd = request.primarySaleEnd,
+                    eventAt = start,
+                    eventStartAt = start,
+                    eventEndAt = end,
+                    ticketPriceWei = request.ticketPriceWei ?: BigInteger.ONE,
+                    totalTicketCount = request.totalTicketCount ?: 0,
+                    primarySaleStart = saleStart,
+                    primarySaleEnd = saleEnd,
                     resaleAllowed = request.resaleAllowed,
-                    maxResalePriceRate = request.maxResalePriceRate,
+                    maxResalePriceRate = request.maxResalePriceRate ?: 10_000,
                     resaleStart = request.resaleStart,
                     resaleEnd = request.resaleEnd,
+                    rounds = rounds,
                 ),
             ),
         )
+    }
 
     fun get(eventId: UUID): EventResponse = eventApiMapper.toResponse(eventService.get(eventId))
 
@@ -77,14 +117,43 @@ class EventFacade(
         )
     }
 
-    fun update(organizerId: UUID, eventId: UUID, request: EventUpdateRequest): EventResponse =
-        eventApiMapper.toResponse(
+    fun update(organizerId: UUID, eventId: UUID, request: EventUpdateRequest): EventResponse {
+        val saleStart = request.primarySaleStart ?: request.salesStartAt
+        val saleEnd = request.primarySaleEnd ?: request.salesEndAt
+        val rounds = request.rounds?.mapIndexed { index, round ->
+            val roundStartInstant = round.eventDate.atTime(round.startTime).atZone(java.time.ZoneId.systemDefault()).toInstant()
+            EventRoundCommand(
+                title = round.title?.takeIf { it.isNotBlank() } ?: "${index + 1}회차",
+                eventDate = round.eventDate,
+                startTime = round.startTime,
+                endTime = round.endTime,
+                saleStartAt = if (round.useGlobalSalePeriod) saleStart ?: round.saleStartAt ?: Instant.now() else round.saleStartAt ?: saleStart ?: Instant.now(),
+                saleEndAt = if (round.useGlobalSalePeriod) saleEnd ?: round.saleEndAt ?: roundStartInstant else round.saleEndAt ?: saleEnd ?: roundStartInstant,
+                useGlobalSalePeriod = round.useGlobalSalePeriod,
+            )
+        }
+        return eventApiMapper.toResponse(
             eventService.update(
                 organizerId,
                 eventId,
-                EventUpdateCommand(request.name, request.description, request.category, request.venue, request.imageUrl, request.eventAt),
+                EventUpdateCommand(
+                    request.name,
+                    request.description,
+                    request.category,
+                    request.location?.name?.takeIf { it.isNotBlank() } ?: request.venue,
+                    request.location?.placeId ?: request.venuePlaceId,
+                    request.imageUrl,
+                    request.removeImage,
+                    request.eventAt,
+                    request.eventStartAt ?: request.startsAt,
+                    request.eventEndAt ?: request.endsAt,
+                    saleStart,
+                    saleEnd,
+                    rounds,
+                ),
             ),
         )
+    }
 
     fun changeStatus(actorId: UUID, eventId: UUID, request: EventStatusRequest): EventResponse =
         eventApiMapper.toResponse(eventService.changeStatus(actorId, eventId, EventStatusCommand(request.status)))

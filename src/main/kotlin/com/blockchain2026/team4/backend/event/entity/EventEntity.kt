@@ -42,11 +42,20 @@ class EventEntity(
     @Column(name = "venue", nullable = false, length = 180)
     var venue: String,
 
+    @Column(name = "venue_place_id", length = 120)
+    var venuePlaceId: String? = null,
+
     @Column(name = "image_url", length = 500)
     var imageUrl: String?,
 
     @Column(name = "event_at", nullable = false)
     var eventAt: Instant,
+
+    @Column(name = "event_start_at", nullable = false)
+    var eventStartAt: Instant = eventAt,
+
+    @Column(name = "event_end_at", nullable = false)
+    var eventEndAt: Instant = eventAt,
 
     @Column(name = "ticket_price_wei", nullable = false, precision = 78, scale = 0)
     var ticketPriceWei: BigInteger,
@@ -86,7 +95,7 @@ class EventEntity(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    var status: EventStatus = EventStatus.ACTIVE,
+    var status: EventStatus = EventStatus.PUBLISHED,
 
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),

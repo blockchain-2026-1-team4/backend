@@ -20,5 +20,6 @@ class AuthApiMapper(
             accessToken = dto.accessToken,
             refreshToken = dto.refreshToken,
             user = userApiMapper.toResponse(dto.user),
+            isNewUser = dto.isNewUser,
         )
 }

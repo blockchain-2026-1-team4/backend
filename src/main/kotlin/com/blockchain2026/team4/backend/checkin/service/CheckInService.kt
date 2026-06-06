@@ -43,7 +43,7 @@ class CheckInService(
         val ticket = ticketService.findEntity(command.ticketId)
         if (ticket.owner?.id != userId) throw BusinessException(ErrorCode.FORBIDDEN, "소유한 티켓만 QR을 생성할 수 있습니다.")
         if (ticket.status !in setOf(TicketStatus.SOLD, TicketStatus.LISTED)) throw BusinessException(ErrorCode.CONFLICT, "유효한 티켓만 QR을 생성할 수 있습니다.")
-        if (ticket.event.status != EventStatus.ACTIVE) {
+        if (ticket.event.status != EventStatus.PUBLISHED) {
             throw BusinessException(ErrorCode.CONFLICT, "활성 이벤트 티켓만 QR을 생성할 수 있습니다.")
         }
 
@@ -85,7 +85,7 @@ class CheckInService(
         if (ticket.owner == null || ticket.status !in setOf(TicketStatus.SOLD, TicketStatus.LISTED)) {
             throw BusinessException(ErrorCode.CONFLICT, "판매 완료된 유효 티켓만 체크인할 수 있습니다.")
         }
-        if (ticket.event.status != EventStatus.ACTIVE) {
+        if (ticket.event.status != EventStatus.PUBLISHED) {
             throw BusinessException(ErrorCode.CONFLICT, "비활성 이벤트 티켓은 체크인할 수 없습니다.")
         }
 

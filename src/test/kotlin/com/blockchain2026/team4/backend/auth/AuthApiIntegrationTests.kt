@@ -1,6 +1,7 @@
 package com.blockchain2026.team4.backend.auth
 
 import com.blockchain2026.team4.backend.support.ApiIntegrationTestSupport
+import com.blockchain2026.team4.backend.user.entity.UserRole
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
@@ -10,8 +11,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 class AuthApiIntegrationTests : ApiIntegrationTestSupport() {
     @Test
-    fun `email auth APIs issue tokens in standardized envelopes`() {
-        val registerResult = mockMvc.perform(
+    fun `email auth rejects registration and issues tokens for admin login`() {
+        mockMvc.perform(
             post("/api/v1/auth/email/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
@@ -24,20 +25,15 @@ class AuthApiIntegrationTests : ApiIntegrationTestSupport() {
                     """.trimIndent(),
                 ),
         )
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.status").value(200))
-            .andExpect(jsonPath("$.code").value("OK"))
-            .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
-            .andExpect(jsonPath("$.data.user.email").value("email-user@example.com"))
-            .andExpect(jsonPath("$.data.user.roles[0]").value("USER"))
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.status").value(403))
+            .andExpect(jsonPath("$.code").value("FORBIDDEN"))
             .andExpect(jsonPath("$.meta.requestId").exists())
-            .andReturn()
 
-        assertThat(readString(registerResult, "$.data.accessToken")).isNotBlank()
-        assertThat(readString(registerResult, "$.data.refreshToken")).isNotBlank()
+        createUser(email = "email-user@example.com", roles = setOf(UserRole.ADMIN))
 
-        mockMvc.perform(
+        val loginResult = mockMvc.perform(
             post("/api/v1/auth/email/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
@@ -52,7 +48,11 @@ class AuthApiIntegrationTests : ApiIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.user.email").value("email-user@example.com"))
+            .andExpect(jsonPath("$.data.user.roles[0]").value("ADMIN"))
             .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+            .andReturn()
+
+        assertThat(readString(loginResult, "$.data.refreshToken")).isNotBlank()
     }
 
     @Test

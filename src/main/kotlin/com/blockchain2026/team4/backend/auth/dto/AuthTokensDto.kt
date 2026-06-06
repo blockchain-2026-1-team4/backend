@@ -7,4 +7,5 @@ data class AuthTokensDto(
     val accessToken: String,
     val refreshToken: String,
     val user: UserDto,
+    val isNewUser: Boolean = false,
 )

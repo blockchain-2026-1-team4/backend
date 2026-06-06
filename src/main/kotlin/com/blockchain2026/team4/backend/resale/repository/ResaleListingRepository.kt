@@ -10,6 +10,8 @@ import java.util.UUID
 interface ResaleListingRepository : JpaRepository<ResaleListingEntity, UUID> {
     fun findAllByStatus(status: ResaleListingStatus, pageable: Pageable): Page<ResaleListingEntity>
 
+    fun findAllByStatus(status: ResaleListingStatus): List<ResaleListingEntity>
+
     fun findByTicketIdAndStatus(ticketId: UUID, status: ResaleListingStatus): ResaleListingEntity?
 
     fun findAllByStatusNot(status: ResaleListingStatus, pageable: Pageable): Page<ResaleListingEntity>

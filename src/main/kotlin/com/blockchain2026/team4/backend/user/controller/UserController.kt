@@ -46,6 +46,14 @@ class UserController(
         @RequestParam(required = false) status: UserStatus?,
     ): PageResponse<UserResponse> = userFacade.listUsers(page, size, status)
 
+    @Operation(summary = "사용자 검색", description = "이메일 또는 표시 이름으로 사용자를 검색합니다. 주최자 이상 접근 가능합니다.")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
+    @GetMapping("/search")
+    fun searchUsers(
+        @RequestParam query: String,
+        @RequestParam(defaultValue = "10") size: Int,
+    ): PageResponse<UserResponse> = userFacade.searchUsers(query, size)
+
     @Operation(summary = "사용자 정지", description = "관리자가 사용자를 정지 상태로 변경합니다.")
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{userId}/suspend")
@@ -65,4 +73,19 @@ class UserController(
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{userId}/validator")
     fun grantValidator(@PathVariable userId: UUID): UserResponse = userFacade.grantValidator(userId)
+
+    @Operation(summary = "전역 검증자 권한 회수", description = "관리자가 사용자에게서 전체 이벤트 체크인 검증자 권한을 회수합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/validator/revoke")
+    fun revokeValidator(@PathVariable userId: UUID): UserResponse = userFacade.revokeValidator(userId)
+
+    @Operation(summary = "주최자 권한 부여", description = "관리자가 사용자에게 주최자 권한을 부여합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/organizer")
+    fun grantOrganizer(@PathVariable userId: UUID): UserResponse = userFacade.grantOrganizer(userId)
+
+    @Operation(summary = "주최자 권한 회수", description = "관리자가 사용자에게서 주최자 권한을 회수합니다.")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{userId}/organizer/revoke")
+    fun revokeOrganizer(@PathVariable userId: UUID): UserResponse = userFacade.revokeOrganizer(userId)
 }

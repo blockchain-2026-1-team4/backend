@@ -9,8 +9,9 @@ import org.mapstruct.Mapping
 interface EventValidatorMapper {
     @Mapping(source = "event.id", target = "eventId")
     @Mapping(source = "validator.id", target = "validatorId")
-    @Mapping(source = "validator.walletAddress", target = "validatorWalletAddress")
+    @Mapping(source = "validator.displayName", target = "validatorDisplayName")
     @Mapping(source = "validator.email", target = "validatorEmail")
+    @Mapping(source = "validator.walletAddress", target = "validatorWalletAddress")
     fun toDto(entity: EventValidatorEntity): EventValidatorDto
 
     fun toDtos(entities: List<EventValidatorEntity>): List<EventValidatorDto>

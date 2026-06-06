@@ -1,11 +1,13 @@
 package com.blockchain2026.team4.backend.ticket.facade
 
+import com.blockchain2026.team4.backend.ticket.controller.request.TicketCancelIssuedRequest
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketPurchaseRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
 import com.blockchain2026.team4.backend.ticket.dto.TicketIssueCommand
 import com.blockchain2026.team4.backend.ticket.dto.TicketPurchaseCommand
+import com.blockchain2026.team4.backend.ticket.dto.TicketSectionIssueCommand
 import com.blockchain2026.team4.backend.ticket.mapper.TicketApiMapper
 import com.blockchain2026.team4.backend.ticket.service.TicketService
 import org.springframework.stereotype.Component
@@ -17,7 +19,32 @@ class TicketFacade(
     private val ticketApiMapper: TicketApiMapper,
 ) {
     fun issueTickets(organizerId: UUID, eventId: UUID, request: TicketIssueRequest): List<TicketResponse> =
-        ticketApiMapper.toResponses(ticketService.issueTickets(organizerId, eventId, TicketIssueCommand(request.seatInfos)))
+        ticketApiMapper.toResponses(
+            ticketService.issueTickets(
+                organizerId,
+                eventId,
+                TicketIssueCommand(
+                    seatInfos = request.seatInfos,
+                    totalTicketCount = request.totalTicketCount,
+                    ticketSections = request.ticketSections.map {
+                        TicketSectionIssueCommand(
+                            eventRoundId = it.eventRoundId,
+                            sectionName = it.sectionName,
+                            priceWei = it.priceWei,
+                            saleStartAt = it.saleStartAt,
+                            saleEndAt = it.saleEndAt,
+                            resaleEnabled = it.resaleEnabled,
+                            resaleCapRate = it.resaleCapRate,
+                            startNumber = it.startNumber,
+                            quantity = it.quantity,
+                        )
+                    },
+                ),
+            ),
+        )
+
+    fun cancelIssuedTickets(organizerId: UUID, eventId: UUID, request: TicketCancelIssuedRequest): List<TicketResponse> =
+        ticketApiMapper.toResponses(ticketService.cancelIssuedTickets(organizerId, eventId, request.ticketIds))
 
     fun purchase(userId: UUID, ticketId: UUID, request: TicketPurchaseRequest?): TicketResponse =
         ticketApiMapper.toResponse(ticketService.purchaseTicket(userId, ticketId, TicketPurchaseCommand(request?.transactionHash)))

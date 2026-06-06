@@ -7,7 +7,8 @@ data class EventValidatorDto(
     val id: UUID,
     val eventId: UUID,
     val validatorId: UUID,
-    val validatorWalletAddress: String?,
+    val validatorDisplayName: String?,
     val validatorEmail: String?,
+    val validatorWalletAddress: String?,
     val createdAt: Instant,
 )

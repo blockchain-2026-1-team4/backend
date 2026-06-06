@@ -93,7 +93,10 @@ class Web3jTrustTicketGateway(
         send("cancelEvent", listOf(Uint256(contractEventId)))
 
     override fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission =
-        send("mintTicket", listOf(Uint256(contractEventId), Utf8String(seatInfo)))
+        send(
+            "mintTicket",
+            listOf(Uint256(contractEventId), Utf8String(seatInfo)),
+        )
 
     override fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission =
         send("purchaseTicket", listOf(Uint256(contractTokenId)), valueWei)

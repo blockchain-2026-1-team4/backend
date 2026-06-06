@@ -15,4 +15,5 @@ data class AuthTokenResponse(
     val accessToken: String,
     val refreshToken: String,
     val user: UserResponse,
+    val isNewUser: Boolean = false,
 )

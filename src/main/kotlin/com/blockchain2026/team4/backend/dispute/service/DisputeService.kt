@@ -6,6 +6,7 @@ import com.blockchain2026.team4.backend.common.error.ErrorCode
 import com.blockchain2026.team4.backend.dispute.dto.DisputeCreateCommand
 import com.blockchain2026.team4.backend.dispute.dto.DisputeDto
 import com.blockchain2026.team4.backend.dispute.dto.DisputeReviewCommand
+import com.blockchain2026.team4.backend.dispute.dto.DisputeUpdateCommand
 import com.blockchain2026.team4.backend.dispute.entity.DisputeEntity
 import com.blockchain2026.team4.backend.dispute.entity.DisputeStatus
 import com.blockchain2026.team4.backend.dispute.mapper.DisputeMapper
@@ -27,6 +28,10 @@ class DisputeService(
     private val ticketService: TicketService,
     private val disputeMapper: DisputeMapper,
 ) {
+    private val editableStatuses = setOf(DisputeStatus.OPEN)
+    private val activeDisputeStatuses = setOf(DisputeStatus.OPEN, DisputeStatus.REVIEWING)
+    private val cancelableStatuses = setOf(DisputeStatus.OPEN)
+
     @Transactional
     fun create(reporterId: UUID, command: DisputeCreateCommand): DisputeDto {
         if (command.resaleListingId == null && command.ticketId == null) {
@@ -34,7 +39,19 @@ class DisputeService(
         }
         val reporter = userService.findEntity(reporterId)
         val listing = command.resaleListingId?.let(resaleService::findEntity)
+        if (
+            listing != null &&
+            disputeRepository.existsByReporterIdAndResaleListingIdAndStatusIn(reporterId, listing.id, activeDisputeStatuses)
+        ) {
+            throw BusinessException(ErrorCode.CONFLICT, "동일한 거래/티켓에 대해 이미 신고하셨습니다.")
+        }
         val ticket = command.ticketId?.let(ticketService::findEntity) ?: listing?.ticket
+        if (
+            ticket != null &&
+            disputeRepository.existsByReporterIdAndTicketIdAndStatusIn(reporterId, ticket.id, activeDisputeStatuses)
+        ) {
+            throw BusinessException(ErrorCode.CONFLICT, "동일한 거래/티켓에 대해 이미 신고하셨습니다.")
+        }
         return disputeMapper.toDto(
             disputeRepository.save(
                 DisputeEntity(
@@ -59,6 +76,35 @@ class DisputeService(
         val pageable = PageRequest.of(page, size)
         val disputes = status?.let { disputeRepository.findAllByStatus(it, pageable) } ?: disputeRepository.findAll(pageable)
         return disputes.toResponse()
+    }
+
+    @Transactional
+    fun update(reporterId: UUID, disputeId: UUID, command: DisputeUpdateCommand): DisputeDto {
+        val dispute = disputeRepository.findById(disputeId)
+            .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "분쟁 신고를 찾을 수 없습니다.") }
+        if (dispute.reporter.id != reporterId) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "본인 분쟁 신고만 수정할 수 있습니다.")
+        }
+        if (dispute.status !in editableStatuses) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "처리 중이거나 완료된 분쟁 신고는 수정할 수 없습니다.")
+        }
+        dispute.type = command.type
+        dispute.description = command.description
+        return disputeMapper.toDto(dispute)
+    }
+
+    @Transactional
+    fun cancel(reporterId: UUID, disputeId: UUID): DisputeDto {
+        val dispute = disputeRepository.findById(disputeId)
+            .orElseThrow { BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "분쟁 신고를 찾을 수 없습니다.") }
+        if (dispute.reporter.id != reporterId) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "본인 분쟁 신고만 취소할 수 있습니다.")
+        }
+        if (dispute.status !in cancelableStatuses) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "처리 중이거나 완료된 분쟁 신고는 취소할 수 없습니다.")
+        }
+        dispute.status = DisputeStatus.CANCELED
+        return disputeMapper.toDto(dispute)
     }
 
     @Transactional

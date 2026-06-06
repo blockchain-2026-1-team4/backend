@@ -7,13 +7,15 @@ import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import java.math.BigInteger
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 
 data class EventCreateRequest(
     @field:NotBlank
     @field:Size(max = 180)
     val name: String,
 
-    val description: String?,
+    val description: String? = null,
 
     @field:NotBlank
     @field:Size(max = 80)
@@ -23,43 +25,89 @@ data class EventCreateRequest(
     @field:Size(max = 180)
     val venue: String,
 
-    val imageUrl: String?,
+    val location: EventLocationRequest? = null,
 
-    @field:NotNull
-    val eventAt: Instant,
+    val venuePlaceId: String? = null,
 
-    @field:NotNull
-    val ticketPriceWei: BigInteger,
+    val imageUrl: String? = null,
 
-    @field:Min(1)
-    val totalTicketCount: Int,
+    val eventAt: Instant? = null,
 
-    @field:NotNull
-    val primarySaleStart: Instant,
+    val eventStartAt: Instant? = null,
 
-    @field:NotNull
-    val primarySaleEnd: Instant,
+    val eventEndAt: Instant? = null,
 
-    val resaleAllowed: Boolean,
+    val startsAt: Instant? = null,
 
-    @field:Min(10_000)
-    val maxResalePriceRate: Int,
+    val endsAt: Instant? = null,
 
-    val resaleStart: Instant?,
+    val ticketPriceWei: BigInteger? = null,
 
-    val resaleEnd: Instant?,
+    val totalTicketCount: Int? = null,
+
+    val primarySaleStart: Instant? = null,
+
+    val primarySaleEnd: Instant? = null,
+
+    val salesStartAt: Instant? = null,
+
+    val salesEndAt: Instant? = null,
+
+    val resaleAllowed: Boolean = false,
+
+    val maxResalePriceRate: Int? = null,
+
+    val resaleStart: Instant? = null,
+
+    val resaleEnd: Instant? = null,
+
+    val rounds: List<EventRoundRequest> = emptyList(),
 )
 
 data class EventUpdateRequest(
     @field:Size(max = 180)
-    val name: String?,
-    val description: String?,
+    val name: String? = null,
+    val description: String? = null,
     @field:Size(max = 80)
-    val category: String?,
+    val category: String? = null,
     @field:Size(max = 180)
-    val venue: String?,
-    val imageUrl: String?,
-    val eventAt: Instant?,
+    val venue: String? = null,
+    val location: EventLocationRequest? = null,
+    val venuePlaceId: String? = null,
+    val imageUrl: String? = null,
+    val removeImage: Boolean = false,
+    val eventAt: Instant? = null,
+    val eventStartAt: Instant? = null,
+    val eventEndAt: Instant? = null,
+    val startsAt: Instant? = null,
+    val endsAt: Instant? = null,
+    val primarySaleStart: Instant? = null,
+    val primarySaleEnd: Instant? = null,
+    val salesStartAt: Instant? = null,
+    val salesEndAt: Instant? = null,
+    val rounds: List<EventRoundRequest>? = null,
+)
+
+data class EventLocationRequest(
+    val name: String? = null,
+    val address: String? = null,
+    val placeId: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+)
+
+data class EventRoundRequest(
+    @field:Size(max = 80)
+    val title: String? = null,
+    @field:NotNull
+    val eventDate: LocalDate,
+    @field:NotNull
+    val startTime: LocalTime,
+    @field:NotNull
+    val endTime: LocalTime,
+    val saleStartAt: Instant? = null,
+    val saleEndAt: Instant? = null,
+    val useGlobalSalePeriod: Boolean = true,
 )
 
 data class EventStatusRequest(

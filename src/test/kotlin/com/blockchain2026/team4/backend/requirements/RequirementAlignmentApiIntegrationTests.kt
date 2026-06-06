@@ -31,6 +31,7 @@ class RequirementAlignmentApiIntegrationTests : ApiIntegrationTestSupport() {
         val eventValidator = createUser(
             email = "event-validator@example.com",
             walletAddress = "0x0000000000000000000000000000000000001004",
+            displayName = "현장 검증자",
         )
         val globalValidator = createUser(
             email = "global-validator@example.com",
@@ -85,6 +86,7 @@ class RequirementAlignmentApiIntegrationTests : ApiIntegrationTestSupport() {
                 ),
         )
             .andExpect(status().isOk)
+            .andExpect(jsonPath("$.data.contractEventId").isNotEmpty())
             .andExpect(jsonPath("$.data.remainingTicketCount").value(3))
             .andExpect(jsonPath("$.data.soldTicketCount").value(0))
             .andReturn()
@@ -149,6 +151,7 @@ class RequirementAlignmentApiIntegrationTests : ApiIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data.eventId").value(eventId))
             .andExpect(jsonPath("$.data.validatorId").value(eventValidator.id.toString()))
+            .andExpect(jsonPath("$.data.validatorDisplayName").value("현장 검증자"))
 
         mockMvc.perform(
             get("/api/v1/events/$eventId/validators")
@@ -156,6 +159,7 @@ class RequirementAlignmentApiIntegrationTests : ApiIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data[0].validatorId").value(eventValidator.id.toString()))
+            .andExpect(jsonPath("$.data[0].validatorDisplayName").value("현장 검증자"))
 
         val issueResult = mockMvc.perform(
             post("/api/v1/events/$eventId/tickets")
@@ -164,6 +168,8 @@ class RequirementAlignmentApiIntegrationTests : ApiIntegrationTestSupport() {
                 .content("""{"seatInfos": ["R-1", "R-2"]}"""),
         )
             .andExpect(status().isOk)
+            .andExpect(jsonPath("$.data[0].contractTokenId").isNotEmpty())
+            .andExpect(jsonPath("$.data[1].contractTokenId").isNotEmpty())
             .andReturn()
 
         val checkInTicketId = readString(issueResult, "$.data[0].id")
