@@ -203,6 +203,9 @@ class EventService(
         if (!isAdmin && event.adminCanceled && command.status != EventStatus.CANCELED) {
             throw BusinessException(ErrorCode.FORBIDDEN, "관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.")
         }
+        if (event.status == EventStatus.CANCELED && command.status != EventStatus.CANCELED && event.contractEventId != null) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "온체인 취소 처리된 이벤트는 복구할 수 없습니다.")
+        }
 
         event.status = command.status
         if (command.status == EventStatus.CANCELED) {
@@ -212,7 +215,11 @@ class EventService(
         }
         val active = command.status == EventStatus.ACTIVE
         event.contractEventId?.let {
-            val submission = trustTicketGateway.setEventStatus(it, active)
+            val submission = if (command.status == EventStatus.CANCELED) {
+                trustTicketGateway.cancelEvent(it)
+            } else {
+                trustTicketGateway.setEventStatus(it, active)
+            }
             blockchainTransactionService.record(submission)
         }
         return eventMapper.toDto(event)
