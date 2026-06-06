@@ -2,9 +2,11 @@ package com.blockchain2026.team4.backend.ticket.facade
 
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketCancelIssuedRequest
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
+import com.blockchain2026.team4.backend.ticket.controller.request.TicketPurchaseRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
 import com.blockchain2026.team4.backend.ticket.dto.TicketIssueCommand
+import com.blockchain2026.team4.backend.ticket.dto.TicketPurchaseCommand
 import com.blockchain2026.team4.backend.ticket.dto.TicketSectionIssueCommand
 import com.blockchain2026.team4.backend.ticket.mapper.TicketApiMapper
 import com.blockchain2026.team4.backend.ticket.service.TicketService
@@ -44,8 +46,8 @@ class TicketFacade(
     fun cancelIssuedTickets(organizerId: UUID, eventId: UUID, request: TicketCancelIssuedRequest): List<TicketResponse> =
         ticketApiMapper.toResponses(ticketService.cancelIssuedTickets(organizerId, eventId, request.ticketIds))
 
-    fun purchase(userId: UUID, ticketId: UUID): TicketResponse =
-        ticketApiMapper.toResponse(ticketService.purchaseTicket(userId, ticketId))
+    fun purchase(userId: UUID, ticketId: UUID, request: TicketPurchaseRequest?): TicketResponse =
+        ticketApiMapper.toResponse(ticketService.purchaseTicket(userId, ticketId, TicketPurchaseCommand(request?.transactionHash)))
 
     fun get(ticketId: UUID): TicketResponse = ticketApiMapper.toResponse(ticketService.get(ticketId))
 

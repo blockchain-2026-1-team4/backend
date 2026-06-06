@@ -27,7 +27,7 @@ class OrganizerApplicationFacade(
 
     fun review(adminId: UUID, applicationId: UUID, request: OrganizerReviewRequest): OrganizerApplicationResponse =
         organizerApplicationApiMapper.toResponse(
-            organizerApplicationService.review(adminId, applicationId, OrganizerReviewCommand(request.status)),
+            organizerApplicationService.review(adminId, applicationId, OrganizerReviewCommand(request.status, request.transactionHash)),
         )
 
     fun mine(userId: UUID): List<OrganizerApplicationResponse> =

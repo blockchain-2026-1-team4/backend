@@ -21,3 +21,7 @@ data class TicketIssueCommand(
     val totalTicketCount: Int?,
     val ticketSections: List<TicketSectionIssueCommand>,
 )
+
+data class TicketPurchaseCommand(
+    val transactionHash: String? = null,
+)

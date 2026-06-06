@@ -3,6 +3,7 @@ package com.blockchain2026.team4.backend.event.service
 import com.blockchain2026.team4.backend.blockchain.dto.ContractEventCommand
 import com.blockchain2026.team4.backend.blockchain.gateway.TrustTicketGateway
 import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransactionService
+import com.blockchain2026.team4.backend.common.config.AppProperties
 import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
@@ -41,6 +42,7 @@ class EventService(
     private val userService: UserService,
     private val trustTicketGateway: TrustTicketGateway,
     private val blockchainTransactionService: BlockchainTransactionService,
+    private val appProperties: AppProperties,
     private val eventMapper: EventMapper,
     private val eventValidatorMapper: EventValidatorMapper,
 ) {
@@ -65,12 +67,13 @@ class EventService(
             ),
         )
         blockchainTransactionService.record(submission)
-        val contractEventId = submission.resultId
-            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "생성된 이벤트의 컨트랙트 이벤트 ID를 확인할 수 없습니다.")
-
+        if (appProperties.blockchain.enabled && submission.contractEventId == null) {
+            throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "온체인 EventCreated 로그에서 eventId를 확인하지 못했습니다.")
+        }
         val event = eventRepository.save(
             EventEntity(
                 organizer = organizerEntity,
+                contractEventId = submission.contractEventId,
                 name = command.name,
                 description = command.description,
                 category = command.category,
@@ -90,7 +93,6 @@ class EventService(
                 maxResalePriceRate = command.maxResalePriceRate,
                 resaleStart = command.resaleStart,
                 resaleEnd = command.resaleEnd,
-                contractEventId = contractEventId,
             ),
         )
         val rounds = command.rounds.map {
@@ -265,6 +267,9 @@ class EventService(
         if (!isAdmin && event.adminCanceled && command.status != EventStatus.CANCELLED) {
             throw BusinessException(ErrorCode.FORBIDDEN, "관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.")
         }
+        if (event.status == EventStatus.CANCELLED && command.status != EventStatus.CANCELLED && event.contractEventId != null) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "온체인 취소 처리된 이벤트는 복구할 수 없습니다.")
+        }
 
         event.status = command.status
         if (command.status == EventStatus.CANCELLED) {
@@ -274,7 +279,11 @@ class EventService(
         }
         val active = command.status == EventStatus.PUBLISHED
         event.contractEventId?.let {
-            val submission = trustTicketGateway.setEventStatus(it, active)
+            val submission = if (command.status == EventStatus.CANCELLED) {
+                trustTicketGateway.cancelEvent(it)
+            } else {
+                trustTicketGateway.setEventStatus(it, active)
+            }
             blockchainTransactionService.record(submission)
         }
         return eventMapper.toDto(event, eventRoundRepository.findAllByEventIdOrderByEventDateAscStartTimeAsc(eventId))

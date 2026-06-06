@@ -8,6 +8,7 @@ import org.mapstruct.Mapping
 @Mapper
 interface OrganizerApplicationMapper {
     @Mapping(source = "user.id", target = "userId")
+    @Mapping(source = "user.walletAddress", target = "userWalletAddress")
     fun toDto(entity: OrganizerApplicationEntity): OrganizerApplicationDto
 
     fun toDtos(entities: List<OrganizerApplicationEntity>): List<OrganizerApplicationDto>

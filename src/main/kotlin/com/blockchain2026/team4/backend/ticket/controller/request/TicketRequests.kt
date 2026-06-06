@@ -29,5 +29,5 @@ data class TicketCancelIssuedRequest(
 )
 
 data class TicketPurchaseRequest(
-    val memo: String? = null,
+    val transactionHash: String? = null,
 )

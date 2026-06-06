@@ -2,8 +2,11 @@ package com.blockchain2026.team4.backend.resale.facade
 
 import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.resale.controller.request.ResaleCreateRequest
+import com.blockchain2026.team4.backend.resale.controller.request.ResaleTransactionRequest
 import com.blockchain2026.team4.backend.resale.controller.response.ResaleListingResponse
+import com.blockchain2026.team4.backend.resale.dto.ResaleCancelCommand
 import com.blockchain2026.team4.backend.resale.dto.ResaleCreateCommand
+import com.blockchain2026.team4.backend.resale.dto.ResalePurchaseCommand
 import com.blockchain2026.team4.backend.resale.mapper.ResaleApiMapper
 import com.blockchain2026.team4.backend.resale.service.ResaleService
 import org.springframework.stereotype.Component
@@ -15,13 +18,13 @@ class ResaleFacade(
     private val resaleApiMapper: ResaleApiMapper,
 ) {
     fun create(userId: UUID, ticketId: UUID, request: ResaleCreateRequest): ResaleListingResponse =
-        resaleApiMapper.toResponse(resaleService.createListing(userId, ticketId, ResaleCreateCommand(request.priceWei)))
+        resaleApiMapper.toResponse(resaleService.createListing(userId, ticketId, ResaleCreateCommand(request.priceWei, request.transactionHash)))
 
-    fun purchase(userId: UUID, listingId: UUID): ResaleListingResponse =
-        resaleApiMapper.toResponse(resaleService.purchaseListing(userId, listingId))
+    fun purchase(userId: UUID, listingId: UUID, request: ResaleTransactionRequest?): ResaleListingResponse =
+        resaleApiMapper.toResponse(resaleService.purchaseListing(userId, listingId, ResalePurchaseCommand(request?.transactionHash)))
 
-    fun cancel(userId: UUID, listingId: UUID): ResaleListingResponse =
-        resaleApiMapper.toResponse(resaleService.cancelListing(userId, listingId))
+    fun cancel(userId: UUID, listingId: UUID, request: ResaleTransactionRequest?): ResaleListingResponse =
+        resaleApiMapper.toResponse(resaleService.cancelListing(userId, listingId, ResaleCancelCommand(request?.transactionHash)))
 
     fun get(listingId: UUID): ResaleListingResponse = resaleApiMapper.toResponse(resaleService.get(listingId))
 

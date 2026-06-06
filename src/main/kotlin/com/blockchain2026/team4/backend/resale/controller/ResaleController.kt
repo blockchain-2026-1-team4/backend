@@ -4,6 +4,7 @@ import com.blockchain2026.team4.backend.common.api.PageResponse
 import com.blockchain2026.team4.backend.common.security.AuthPrincipal
 import com.blockchain2026.team4.backend.common.security.CurrentUser
 import com.blockchain2026.team4.backend.resale.controller.request.ResaleCreateRequest
+import com.blockchain2026.team4.backend.resale.controller.request.ResaleTransactionRequest
 import com.blockchain2026.team4.backend.resale.controller.response.ResaleListingResponse
 import com.blockchain2026.team4.backend.resale.facade.ResaleFacade
 import io.swagger.v3.oas.annotations.Operation
@@ -44,17 +45,19 @@ class ResaleController(
         @Valid @RequestBody request: ResaleCreateRequest,
     ): ResaleListingResponse = resaleFacade.create(principal.userId, ticketId, request)
 
-    @Operation(summary = "리셀 구매", description = "사용자가 활성 리셀 티켓을 구매하고 백엔드가 컨트랙트 리셀 구매 트랜잭션을 제출합니다.")
+    @Operation(summary = "리셀 구매 확정", description = "사용자 지갑이 제출한 리셀 구매 트랜잭션을 검증한 뒤 DB 거래를 확정합니다.")
     @PostMapping("/resale-listings/{listingId}/purchase")
     fun purchase(
         @CurrentUser principal: AuthPrincipal,
         @PathVariable listingId: UUID,
-    ): ResaleListingResponse = resaleFacade.purchase(principal.userId, listingId)
+        @RequestBody(required = false) request: ResaleTransactionRequest?,
+    ): ResaleListingResponse = resaleFacade.purchase(principal.userId, listingId, request)
 
-    @Operation(summary = "리셀 취소", description = "판매자가 자신의 리셀 등록을 취소합니다.")
+    @Operation(summary = "리셀 취소 확정", description = "사용자 지갑이 제출한 리셀 취소 트랜잭션을 검증한 뒤 DB 등록을 취소합니다.")
     @PatchMapping("/resale-listings/{listingId}/cancel")
     fun cancel(
         @CurrentUser principal: AuthPrincipal,
         @PathVariable listingId: UUID,
-    ): ResaleListingResponse = resaleFacade.cancel(principal.userId, listingId)
+        @RequestBody(required = false) request: ResaleTransactionRequest?,
+    ): ResaleListingResponse = resaleFacade.cancel(principal.userId, listingId, request)
 }

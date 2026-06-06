@@ -75,7 +75,7 @@ class TicketLifecycleApiIntegrationTests : ApiIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.name").value("Kyunghee Blockchain Concert"))
-            .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.data.status").value("PUBLISHED"))
             .andReturn()
 
         val eventId = readString(eventResult, "$.data.id")
@@ -127,13 +127,13 @@ class TicketLifecycleApiIntegrationTests : ApiIntegrationTestSupport() {
             patch("/api/v1/events/$eventId/status")
                 .header(HttpHeaders.AUTHORIZATION, bearerToken(organizer))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"status": "ACTIVE"}"""),
+                .content("""{"status": "PUBLISHED"}"""),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.data.status").value("PUBLISHED"))
 
-        mockMvc.perform(get("/api/v1/events").queryParam("status", "ACTIVE"))
+        mockMvc.perform(get("/api/v1/events").queryParam("status", "PUBLISHED"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.totalElements").value(1))
@@ -142,7 +142,7 @@ class TicketLifecycleApiIntegrationTests : ApiIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.id").value(eventId))
-            .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.data.status").value("PUBLISHED"))
 
         val issuedResult = mockMvc.perform(
             post("/api/v1/events/$eventId/tickets")

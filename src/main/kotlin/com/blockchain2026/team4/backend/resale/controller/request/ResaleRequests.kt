@@ -6,4 +6,9 @@ import java.math.BigInteger
 data class ResaleCreateRequest(
     @field:NotNull
     val priceWei: BigInteger,
+    val transactionHash: String? = null,
+)
+
+data class ResaleTransactionRequest(
+    val transactionHash: String? = null,
 )

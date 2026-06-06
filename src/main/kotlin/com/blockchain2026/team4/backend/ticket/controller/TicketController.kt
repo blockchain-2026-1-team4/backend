@@ -4,6 +4,7 @@ import com.blockchain2026.team4.backend.common.security.AuthPrincipal
 import com.blockchain2026.team4.backend.common.security.CurrentUser
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketCancelIssuedRequest
 import com.blockchain2026.team4.backend.ticket.controller.request.TicketIssueRequest
+import com.blockchain2026.team4.backend.ticket.controller.request.TicketPurchaseRequest
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketResponse
 import com.blockchain2026.team4.backend.ticket.controller.response.TicketValidityResponse
 import com.blockchain2026.team4.backend.ticket.facade.TicketFacade
@@ -64,10 +65,11 @@ class TicketController(
     @GetMapping("/tickets/{ticketId}/validity")
     fun validity(@PathVariable ticketId: UUID): TicketValidityResponse = ticketFacade.validity(ticketId)
 
-    @Operation(summary = "1차 티켓 구매", description = "사용자가 1차 판매 티켓을 구매하고 백엔드가 컨트랙트 구매 트랜잭션을 제출합니다.")
+    @Operation(summary = "1차 티켓 구매 확정", description = "사용자 지갑이 제출한 구매 트랜잭션을 검증한 뒤 DB 소유권을 확정합니다.")
     @PostMapping("/tickets/{ticketId}/purchase")
     fun purchase(
         @CurrentUser principal: AuthPrincipal,
         @PathVariable ticketId: UUID,
-    ): TicketResponse = ticketFacade.purchase(principal.userId, ticketId)
+        @RequestBody(required = false) request: TicketPurchaseRequest?,
+    ): TicketResponse = ticketFacade.purchase(principal.userId, ticketId, request)
 }

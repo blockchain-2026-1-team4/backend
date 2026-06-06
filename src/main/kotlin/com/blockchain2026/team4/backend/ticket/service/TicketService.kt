@@ -2,12 +2,14 @@ package com.blockchain2026.team4.backend.ticket.service
 
 import com.blockchain2026.team4.backend.blockchain.gateway.TrustTicketGateway
 import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransactionService
+import com.blockchain2026.team4.backend.common.config.AppProperties
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
 import com.blockchain2026.team4.backend.event.entity.EventStatus
 import com.blockchain2026.team4.backend.event.service.EventService
 import com.blockchain2026.team4.backend.ticket.dto.TicketDto
 import com.blockchain2026.team4.backend.ticket.dto.TicketIssueCommand
+import com.blockchain2026.team4.backend.ticket.dto.TicketPurchaseCommand
 import com.blockchain2026.team4.backend.ticket.dto.TicketValidityDto
 import com.blockchain2026.team4.backend.ticket.entity.TicketEntity
 import com.blockchain2026.team4.backend.ticket.entity.TicketStatus
@@ -28,6 +30,7 @@ class TicketService(
     private val userService: UserService,
     private val trustTicketGateway: TrustTicketGateway,
     private val blockchainTransactionService: BlockchainTransactionService,
+    private val appProperties: AppProperties,
     private val ticketMapper: TicketMapper,
 ) {
     @Transactional
@@ -88,7 +91,7 @@ class TicketService(
         val saved = issueItems.map { (seatInfo, sectionName, sectionPolicy) ->
             val submission = trustTicketGateway.mintTicket(contractEventId, seatInfo)
             blockchainTransactionService.record(submission)
-            val contractTokenId = submission.resultId
+            val contractTokenId = submission.contractTokenId
                 ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "민팅된 티켓의 컨트랙트 토큰 ID를 확인할 수 없습니다.")
             ticketRepository.save(
                 TicketEntity(
@@ -140,7 +143,7 @@ class TicketService(
     }
 
     @Transactional
-    fun purchaseTicket(userId: UUID, ticketId: UUID): TicketDto {
+    fun purchaseTicket(userId: UUID, ticketId: UUID, command: TicketPurchaseCommand = TicketPurchaseCommand()): TicketDto {
         val user = userService.findEntity(userId)
         val ticket = findEntity(ticketId)
         val event = ticket.event
@@ -160,8 +163,25 @@ class TicketService(
             throw BusinessException(ErrorCode.CONFLICT, "구매 가능한 티켓이 아닙니다.")
         }
 
-        ticket.contractTokenId?.let {
-            val submission = trustTicketGateway.purchaseTicket(it, ticket.originalPriceWei)
+        val tokenId = ticket.contractTokenId
+        if (tokenId == null) {
+            if (appProperties.blockchain.enabled) {
+                throw BusinessException(ErrorCode.CONFLICT, "온체인 tokenId가 저장되지 않아 구매를 확정할 수 없습니다.")
+            }
+        } else if (appProperties.blockchain.enabled) {
+            val wallet = user.walletAddress?.takeIf { it.isNotBlank() }
+                ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "지갑 주소가 있는 사용자만 온체인 티켓을 구매할 수 있습니다.")
+            val submission = trustTicketGateway.confirmPrimaryPurchase(
+                contractTokenId = tokenId,
+                buyerWallet = wallet,
+                transactionHash = requireTransactionHash(command.transactionHash),
+            )
+            blockchainTransactionService.record(submission)
+        } else {
+            val submission = command.transactionHash
+                ?.takeIf { it.isNotBlank() }
+                ?.let { trustTicketGateway.confirmPrimaryPurchase(tokenId, user.walletAddress ?: "", it) }
+                ?: trustTicketGateway.purchaseTicket(tokenId, ticket.originalPriceWei)
             blockchainTransactionService.record(submission)
         }
         ticket.owner = user
@@ -237,7 +257,11 @@ class TicketService(
 
     fun contractTokenId(ticket: TicketEntity): BigInteger =
         ticket.contractTokenId
-            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "컨트랙트 토큰 ID가 없는 티켓입니다. 티켓 민팅 상태를 확인해주세요.")
+            ?: throw BusinessException(ErrorCode.CONFLICT, "온체인 tokenId가 저장되지 않은 티켓입니다.")
 
     private fun String.normalizeWallet(): String = trim().lowercase()
+
+    private fun requireTransactionHash(transactionHash: String?): String =
+        transactionHash?.takeIf { it.isNotBlank() }
+            ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "사용자 지갑에서 서명한 트랜잭션 해시가 필요합니다.")
 }

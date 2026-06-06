@@ -20,7 +20,8 @@ data class BlockchainSubmission(
     val transactionHash: String?,
     val status: BlockchainTransactionStatus,
     val errorMessage: String? = null,
-    val resultId: BigInteger? = null,
+    val contractEventId: BigInteger? = null,
+    val contractTokenId: BigInteger? = null,
 )
 
 data class ContractEventCommand(

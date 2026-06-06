@@ -13,32 +13,55 @@ import org.web3j.abi.FunctionReturnDecoder
 import org.web3j.abi.TypeReference
 import org.web3j.abi.datatypes.Address
 import org.web3j.abi.datatypes.Bool
-import org.web3j.abi.datatypes.Event
 import org.web3j.abi.datatypes.Function
 import org.web3j.abi.datatypes.Type
 import org.web3j.abi.datatypes.Utf8String
 import org.web3j.abi.datatypes.generated.Uint256
-import org.web3j.abi.EventEncoder
 import org.web3j.crypto.Credentials
+import org.web3j.crypto.Hash
 import org.web3j.protocol.Web3j
 import org.web3j.protocol.core.DefaultBlockParameterName
 import org.web3j.protocol.core.methods.request.Transaction
+import org.web3j.protocol.core.methods.response.Log
+import org.web3j.protocol.core.methods.response.TransactionReceipt
 import org.web3j.protocol.http.HttpService
 import org.web3j.tx.RawTransactionManager
-import org.web3j.tx.response.PollingTransactionReceiptProcessor
 import java.math.BigInteger
+import java.time.Duration
+import java.time.Instant
 
 @Component
 @ConditionalOnProperty(prefix = "app.blockchain", name = ["enabled"], havingValue = "true")
 class Web3jTrustTicketGateway(
     private val appProperties: AppProperties,
 ) : TrustTicketGateway {
+    private val eventCreatedTopic = Hash.sha3String("EventCreated(uint256,address,string)")
+    private val organizerAddedTopic = Hash.sha3String("OrganizerAdded(address)")
+    private val ticketMintedTopic = Hash.sha3String("TicketMinted(uint256,uint256,string)")
+    private val ticketPurchasedTopic = Hash.sha3String("TicketPurchased(uint256,uint256,address,uint256)")
+    private val ticketListedTopic = Hash.sha3String("TicketListed(uint256,address,uint256)")
+    private val ticketListingCanceledTopic = Hash.sha3String("TicketListingCanceled(uint256,address)")
+    private val ticketResoldTopic = Hash.sha3String("TicketResold(uint256,address,address,uint256)")
     private val web3j: Web3j = Web3j.build(HttpService(appProperties.blockchain.rpcUrl))
-    private val credentials: Credentials = Credentials.create(appProperties.blockchain.operatorPrivateKey)
-    private val transactionManager = RawTransactionManager(web3j, credentials, appProperties.blockchain.chainId)
+    private val callFromAddress = "0x0000000000000000000000000000000000000000"
+    private val credentials: Credentials by lazy {
+        Credentials.create(appProperties.blockchain.operatorPrivateKey)
+    }
+    private val transactionManager: RawTransactionManager by lazy {
+        RawTransactionManager(web3j, credentials, appProperties.blockchain.chainId)
+    }
 
     override fun addOrganizer(organizerWallet: String): BlockchainSubmission =
         send("addOrganizer", listOf(Address(organizerWallet)))
+
+    override fun confirmOrganizerAdded(organizerWallet: String, transactionHash: String): BlockchainSubmission =
+        confirmEvent(
+            action = "addOrganizer",
+            transactionHash = transactionHash,
+            topic = organizerAddedTopic,
+        ) { log ->
+            sameAddress(topicAddress(log, 1), organizerWallet)
+        }
 
     override fun addValidator(validatorWallet: String): BlockchainSubmission =
         send("addValidator", listOf(Address(validatorWallet)))
@@ -47,7 +70,7 @@ class Web3jTrustTicketGateway(
         send("addEventValidator", listOf(Uint256(contractEventId), Address(validatorWallet)))
 
     override fun createEvent(command: ContractEventCommand): BlockchainSubmission =
-        sendWithIndexedResult(
+        send(
             "createEvent",
             listOf(
                 Utf8String(command.eventName),
@@ -61,46 +84,91 @@ class Web3jTrustTicketGateway(
                 Uint256(command.resaleStart),
                 Uint256(command.resaleEnd),
             ),
-            emittedEvent = Event(
-                "EventCreated",
-                listOf(
-                    object : TypeReference<Uint256>(true) {},
-                    object : TypeReference<Address>(true) {},
-                    object : TypeReference<Utf8String>() {},
-                ),
-            ),
-            resultTopicIndex = 1,
         )
 
     override fun setEventStatus(contractEventId: BigInteger, active: Boolean): BlockchainSubmission =
         send("setEventStatus", listOf(Uint256(contractEventId), Bool(active)))
 
+    override fun cancelEvent(contractEventId: BigInteger): BlockchainSubmission =
+        send("cancelEvent", listOf(Uint256(contractEventId)))
+
     override fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission =
-        sendWithIndexedResult(
+        send(
             "mintTicket",
             listOf(Uint256(contractEventId), Utf8String(seatInfo)),
-            emittedEvent = Event(
-                "TicketMinted",
-                listOf(
-                    object : TypeReference<Uint256>(true) {},
-                    object : TypeReference<Uint256>(true) {},
-                    object : TypeReference<Utf8String>() {},
-                ),
-            ),
-            resultTopicIndex = 2,
         )
 
     override fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission =
         send("purchaseTicket", listOf(Uint256(contractTokenId)), valueWei)
 
+    override fun confirmPrimaryPurchase(
+        contractTokenId: BigInteger,
+        buyerWallet: String,
+        transactionHash: String,
+    ): BlockchainSubmission =
+        confirmEvent(
+            action = "purchaseTicket",
+            transactionHash = transactionHash,
+            topic = ticketPurchasedTopic,
+        ) { log ->
+            topicUint256(log, 2) == contractTokenId && sameAddress(topicAddress(log, 3), buyerWallet)
+        }
+
     override fun listTicket(contractTokenId: BigInteger, resalePriceWei: BigInteger): BlockchainSubmission =
         send("listTicket", listOf(Uint256(contractTokenId), Uint256(resalePriceWei)))
+
+    override fun confirmTicketListed(
+        contractTokenId: BigInteger,
+        sellerWallet: String,
+        resalePriceWei: BigInteger,
+        transactionHash: String,
+    ): BlockchainSubmission =
+        confirmEvent(
+            action = "listTicket",
+            transactionHash = transactionHash,
+            topic = ticketListedTopic,
+        ) { log ->
+            topicUint256(log, 1) == contractTokenId &&
+                sameAddress(topicAddress(log, 2), sellerWallet) &&
+                dataUint256(log) == resalePriceWei
+        }
 
     override fun purchaseResaleTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission =
         send("purchaseResaleTicket", listOf(Uint256(contractTokenId)), valueWei)
 
+    override fun confirmResalePurchase(
+        contractTokenId: BigInteger,
+        sellerWallet: String,
+        buyerWallet: String,
+        valueWei: BigInteger,
+        transactionHash: String,
+    ): BlockchainSubmission =
+        confirmEvent(
+            action = "purchaseResaleTicket",
+            transactionHash = transactionHash,
+            topic = ticketResoldTopic,
+        ) { log ->
+            topicUint256(log, 1) == contractTokenId &&
+                sameAddress(topicAddress(log, 2), sellerWallet) &&
+                sameAddress(topicAddress(log, 3), buyerWallet) &&
+                dataUint256(log) == valueWei
+        }
+
     override fun cancelListing(contractTokenId: BigInteger): BlockchainSubmission =
         send("cancelListing", listOf(Uint256(contractTokenId)))
+
+    override fun confirmListingCanceled(
+        contractTokenId: BigInteger,
+        sellerWallet: String,
+        transactionHash: String,
+    ): BlockchainSubmission =
+        confirmEvent(
+            action = "cancelListing",
+            transactionHash = transactionHash,
+            topic = ticketListingCanceledTopic,
+        ) { log ->
+            topicUint256(log, 1) == contractTokenId && sameAddress(topicAddress(log, 2), sellerWallet)
+        }
 
     override fun useTicket(contractTokenId: BigInteger): BlockchainSubmission =
         send("useTicket", listOf(Uint256(contractTokenId)))
@@ -117,7 +185,7 @@ class Web3jTrustTicketGateway(
             listOf(object : TypeReference<Bool>() {}),
         )
         val response = web3j.ethCall(
-            Transaction.createEthCallTransaction(credentials.address, appProperties.blockchain.contractAddress, FunctionEncoder.encode(function)),
+            Transaction.createEthCallTransaction(callFromAddress, appProperties.blockchain.contractAddress, FunctionEncoder.encode(function)),
             DefaultBlockParameterName.LATEST,
         ).send()
         val decoded = FunctionReturnDecoder.decode(response.value, function.outputParameters)
@@ -135,7 +203,7 @@ class Web3jTrustTicketGateway(
             listOf(object : TypeReference<org.web3j.abi.datatypes.generated.Bytes32>() {}),
         )
         val response = web3j.ethCall(
-            Transaction.createEthCallTransaction(credentials.address, appProperties.blockchain.contractAddress, FunctionEncoder.encode(function)),
+            Transaction.createEthCallTransaction(callFromAddress, appProperties.blockchain.contractAddress, FunctionEncoder.encode(function)),
             DefaultBlockParameterName.LATEST,
         ).send()
         val decoded = FunctionReturnDecoder.decode(response.value, function.outputParameters)
@@ -163,32 +231,98 @@ class Web3jTrustTicketGateway(
             throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, result.error.message)
         }
 
+        val receipt = waitForReceipt(result.transactionHash, Duration.ofSeconds(45))
+        if (receipt != null && receipt.status == "0x0") {
+            throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "컨트랙트 트랜잭션이 실패했습니다: ${result.transactionHash}")
+        }
+
         return BlockchainSubmission(
             action = action,
             transactionHash = result.transactionHash,
-            status = BlockchainTransactionStatus.SUBMITTED,
+            status = if (receipt == null) BlockchainTransactionStatus.SUBMITTED else BlockchainTransactionStatus.CONFIRMED,
+            contractEventId = when (action) {
+                "createEvent" -> findIndexedUint(receipt, eventCreatedTopic, 1)
+                else -> null
+            },
+            contractTokenId = when (action) {
+                "mintTicket" -> findIndexedUint(receipt, ticketMintedTopic, 2)
+                else -> null
+            },
         )
     }
 
-    private fun sendWithIndexedResult(
+    private fun confirmEvent(
         action: String,
-        inputs: List<Type<*>>,
-        emittedEvent: Event,
-        resultTopicIndex: Int,
+        transactionHash: String,
+        topic: String,
+        matches: (Log) -> Boolean,
     ): BlockchainSubmission {
-        val submission = send(action, inputs)
-        val transactionHash = submission.transactionHash
-            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "$action 트랜잭션 해시를 확인할 수 없습니다.")
-        val receipt = PollingTransactionReceiptProcessor(web3j, 1_000, 60)
-            .waitForTransactionReceipt(transactionHash)
-        val eventSignature = EventEncoder.encode(emittedEvent)
-        val resultTopic = receipt.logs
-            .firstOrNull { it.topics.firstOrNull()?.equals(eventSignature, ignoreCase = true) == true }
-            ?.topics
-            ?.getOrNull(resultTopicIndex)
-            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "$action 결과 ID를 확인할 수 없습니다.")
-        return submission.copy(resultId = BigInteger(resultTopic.removePrefix("0x"), 16))
+        if (transactionHash.isBlank()) {
+            throw BusinessException(ErrorCode.INVALID_REQUEST, "트랜잭션 해시가 필요합니다.")
+        }
+
+        val receipt = waitForReceipt(transactionHash, Duration.ofSeconds(60))
+            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "트랜잭션 영수증을 아직 찾을 수 없습니다: $transactionHash")
+
+        if (!receipt.to.isNullOrBlank() && !sameAddress(receipt.to, appProperties.blockchain.contractAddress)) {
+            throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "TrustTicket 컨트랙트로 보낸 트랜잭션이 아닙니다.")
+        }
+        if (receipt.status == "0x0") {
+            throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "컨트랙트 트랜잭션이 실패했습니다: $transactionHash")
+        }
+
+        val matchedLog = receipt.logs.firstOrNull { log ->
+            sameAddress(log.address, appProperties.blockchain.contractAddress) &&
+                log.topics.firstOrNull()?.equals(topic, ignoreCase = true) == true &&
+                matches(log)
+        } ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "트랜잭션 영수증에서 예상한 $action 이벤트를 찾지 못했습니다.")
+
+        return BlockchainSubmission(
+            action = action,
+            transactionHash = transactionHash,
+            status = BlockchainTransactionStatus.CONFIRMED,
+            contractEventId = findIndexedUint(receipt, eventCreatedTopic, 1),
+            contractTokenId = when (action) {
+                "purchaseTicket", "listTicket", "purchaseResaleTicket", "cancelListing" -> topicUint256(matchedLog, if (action == "purchaseTicket") 2 else 1)
+                else -> null
+            },
+        )
     }
+
+    private fun waitForReceipt(transactionHash: String, timeout: Duration): TransactionReceipt? {
+        val deadline = Instant.now().plus(timeout)
+        while (Instant.now().isBefore(deadline)) {
+            val response = web3j.ethGetTransactionReceipt(transactionHash).send()
+            if (response.hasError()) {
+                throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, response.error.message)
+            }
+            if (response.transactionReceipt.isPresent) {
+                return response.transactionReceipt.get()
+            }
+            Thread.sleep(1_000L)
+        }
+        return null
+    }
+
+    private fun findIndexedUint(receipt: TransactionReceipt?, topic: String, topicIndex: Int): BigInteger? =
+        receipt?.logs
+            ?.firstOrNull {
+                sameAddress(it.address, appProperties.blockchain.contractAddress) &&
+                    it.topics.firstOrNull()?.equals(topic, ignoreCase = true) == true
+            }
+            ?.let { topicUint256(it, topicIndex) }
+
+    private fun topicUint256(log: Log, topicIndex: Int): BigInteger? =
+        log.topics.getOrNull(topicIndex)?.removePrefix("0x")?.takeIf { it.isNotBlank() }?.let { BigInteger(it, 16) }
+
+    private fun topicAddress(log: Log, topicIndex: Int): String? =
+        log.topics.getOrNull(topicIndex)?.removePrefix("0x")?.takeLast(40)?.let { "0x$it" }
+
+    private fun dataUint256(log: Log): BigInteger? =
+        log.data?.removePrefix("0x")?.takeIf { it.isNotBlank() }?.take(64)?.let { BigInteger(it, 16) }
+
+    private fun sameAddress(left: String?, right: String?): Boolean =
+        !left.isNullOrBlank() && !right.isNullOrBlank() && left.equals(right, ignoreCase = true)
 
     private fun hexToBytes(value: String): ByteArray {
         val clean = value.removePrefix("0x")

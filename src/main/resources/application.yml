@@ -59,11 +59,11 @@ app:
     image-directory: ${IMAGE_DIRECTORY:./storage/images}
     public-url-prefix: ${IMAGE_PUBLIC_URL_PREFIX:/images}
   blockchain:
-    enabled: false
-    network-name: local-anvil
-    rpc-url: ${BLOCKCHAIN_RPC_URL:http://127.0.0.1:8545}
-    chain-id: ${BLOCKCHAIN_CHAIN_ID:31337}
-    contract-address: ${TRUST_TICKET_CONTRACT_ADDRESS:}
+    enabled: ${APP_BLOCKCHAIN_ENABLED:false}
+    network-name: ${BLOCKCHAIN_NETWORK_NAME:kaia-kairos-testnet}
+    rpc-url: ${BLOCKCHAIN_RPC_URL:https://public-en-kairos.node.kaia.io}
+    chain-id: ${BLOCKCHAIN_CHAIN_ID:1001}
+    contract-address: ${TRUST_TICKET_CONTRACT_ADDRESS:0xce763CEefFA79695a2A2499a80ff40A27a4678f5}
     operator-private-key: ${BLOCKCHAIN_OPERATOR_PRIVATE_KEY:}
     gas-price-wei: ${BLOCKCHAIN_GAS_PRICE_WEI:1000000000}
     gas-limit: ${BLOCKCHAIN_GAS_LIMIT:6500000}
