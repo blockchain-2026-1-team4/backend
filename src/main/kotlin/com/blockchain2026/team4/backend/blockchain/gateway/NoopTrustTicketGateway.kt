@@ -30,6 +30,8 @@ class NoopTrustTicketGateway : TrustTicketGateway {
 
     override fun setEventStatus(contractEventId: BigInteger, active: Boolean): BlockchainSubmission = simulated("setEventStatus")
 
+    override fun cancelEvent(contractEventId: BigInteger): BlockchainSubmission = simulated("cancelEvent")
+
     override fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission =
         simulated("mintTicket", contractTokenId = BigInteger.valueOf(nextTokenId.getAndIncrement()))
 

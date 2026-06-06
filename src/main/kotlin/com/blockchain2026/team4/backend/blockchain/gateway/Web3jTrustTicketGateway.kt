@@ -89,6 +89,9 @@ class Web3jTrustTicketGateway(
     override fun setEventStatus(contractEventId: BigInteger, active: Boolean): BlockchainSubmission =
         send("setEventStatus", listOf(Uint256(contractEventId), Bool(active)))
 
+    override fun cancelEvent(contractEventId: BigInteger): BlockchainSubmission =
+        send("cancelEvent", listOf(Uint256(contractEventId)))
+
     override fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission =
         send("mintTicket", listOf(Uint256(contractEventId), Utf8String(seatInfo)))
 

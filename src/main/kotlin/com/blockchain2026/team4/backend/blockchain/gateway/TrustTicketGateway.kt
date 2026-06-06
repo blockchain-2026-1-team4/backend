@@ -17,6 +17,8 @@ interface TrustTicketGateway {
 
     fun setEventStatus(contractEventId: BigInteger, active: Boolean): BlockchainSubmission
 
+    fun cancelEvent(contractEventId: BigInteger): BlockchainSubmission
+
     fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission
 
     fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission
