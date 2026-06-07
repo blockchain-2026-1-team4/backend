@@ -1,24 +1,21 @@
 package com.blockchain2026.team4.backend.common.dev
 
 import com.blockchain2026.team4.backend.common.config.AppProperties
-import com.blockchain2026.team4.backend.dispute.entity.DisputeEntity
-import com.blockchain2026.team4.backend.dispute.entity.DisputeStatus
-import com.blockchain2026.team4.backend.dispute.entity.DisputeType
-import com.blockchain2026.team4.backend.dispute.repository.DisputeRepository
 import com.blockchain2026.team4.backend.event.entity.EventEntity
+import com.blockchain2026.team4.backend.event.entity.EventRoundEntity
 import com.blockchain2026.team4.backend.event.entity.EventStatus
 import com.blockchain2026.team4.backend.event.repository.EventRepository
-import com.blockchain2026.team4.backend.resale.entity.ResaleListingEntity
-import com.blockchain2026.team4.backend.resale.entity.ResaleListingStatus
-import com.blockchain2026.team4.backend.resale.repository.ResaleListingRepository
+import com.blockchain2026.team4.backend.event.repository.EventRoundRepository
 import com.blockchain2026.team4.backend.ticket.entity.TicketEntity
 import com.blockchain2026.team4.backend.ticket.entity.TicketStatus
 import com.blockchain2026.team4.backend.ticket.repository.TicketRepository
+import com.blockchain2026.team4.backend.user.entity.UserEntity
 import com.blockchain2026.team4.backend.user.repository.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
 import org.springframework.core.annotation.Order
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
 import java.awt.Color
 import java.awt.Font
@@ -30,6 +27,8 @@ import java.math.BigInteger
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import javax.imageio.ImageIO
 
@@ -39,37 +38,50 @@ class TestDataSeeder(
     private val appProperties: AppProperties,
     private val userRepository: UserRepository,
     private val eventRepository: EventRepository,
+    private val eventRoundRepository: EventRoundRepository,
     private val ticketRepository: TicketRepository,
-    private val resaleListingRepository: ResaleListingRepository,
-    private val disputeRepository: DisputeRepository,
+    private val jdbcTemplate: JdbcTemplate,
 ) : ApplicationRunner {
 
     private val log = LoggerFactory.getLogger(TestDataSeeder::class.java)
 
+    /** 글로벌 NFT 토큰 ID 카운터 */
+    private var tokenId = 100_001L
+
     override fun run(args: ApplicationArguments) {
         if (!appProperties.devData.seed) return
         if (!appProperties.devAuth.enabled) return
-        if (eventRepository.count() > 0) {
-            log.info("[TestDataSeeder] events already exist — skipping seed")
-            return
-        }
 
-        val organizer = userRepository.findById(appProperties.devAuth.userId).orElse(null)
-        if (organizer == null) {
+        val organizer = userRepository.findById(appProperties.devAuth.userId).orElse(null) ?: run {
             log.warn("[TestDataSeeder] dev user not found — skipping seed")
             return
         }
+
+        // ── 기존 데이터 전체 삭제 (FK 의존 순서) ─────────────────────────────────
+        log.info("[TestDataSeeder] clearing all existing business data…")
+        jdbcTemplate.execute("DELETE FROM disputes")
+        jdbcTemplate.execute("DELETE FROM resale_listings")
+        jdbcTemplate.execute("DELETE FROM check_in_records")
+        jdbcTemplate.execute("DELETE FROM blockchain_transactions")
+        jdbcTemplate.execute("DELETE FROM tickets")
+        jdbcTemplate.execute("DELETE FROM event_validators")
+        jdbcTemplate.execute("DELETE FROM event_rounds")
+        jdbcTemplate.execute("DELETE FROM events")
 
         val storageDir = Path.of(appProperties.storage.imageDirectory).toAbsolutePath()
         Files.createDirectories(storageDir)
         val urlPrefix = appProperties.storage.publicUrlPrefix.trimEnd('/')
 
+        // ── 공통 헬퍼 ────────────────────────────────────────────────────────────
+
         fun wei(eth: Double): BigInteger =
             BigDecimal.valueOf(eth).multiply(BigDecimal.TEN.pow(18)).toBigInteger()
 
-        fun past(days: Long): Instant = Instant.now().minus(days, ChronoUnit.DAYS)
-        fun future(days: Long): Instant = Instant.now().plus(days, ChronoUnit.DAYS)
+        fun past(days: Int): Instant = Instant.now().minus(days.toLong(), ChronoUnit.DAYS)
+        fun future(days: Int): Instant = Instant.now().plus(days.toLong(), ChronoUnit.DAYS)
+        fun ld(offsetDays: Int): LocalDate = LocalDate.now().plusDays(offsetDays.toLong())
 
+        /** 그라디언트 포스터 이미지 생성 */
         fun makeImage(filename: String, c1: Color, c2: Color, line1: String, line2: String = ""): String {
             val img = BufferedImage(800, 450, BufferedImage.TYPE_INT_RGB)
             val g = img.createGraphics()
@@ -79,334 +91,727 @@ class TestDataSeeder(
             g.fillRect(0, 0, 800, 450)
             g.color = Color(0, 0, 0, 90)
             g.fillRect(0, 0, 800, 450)
-            g.color = Color(255, 255, 255, 230)
+            g.color = Color(255, 255, 255, 235)
             g.font = Font("SansSerif", Font.BOLD, 38)
             val fm1 = g.fontMetrics
-            val y1 = if (line2.isBlank()) 225 + fm1.ascent / 2 else 200
+            val y1 = if (line2.isBlank()) 225 + fm1.ascent / 2 else 195
             g.drawString(line1, (800 - fm1.stringWidth(line1)) / 2, y1)
             if (line2.isNotBlank()) {
-                g.font = Font("SansSerif", Font.PLAIN, 24)
+                g.font = Font("SansSerif", Font.PLAIN, 22)
                 val fm2 = g.fontMetrics
-                g.color = Color(255, 255, 255, 180)
-                g.drawString(line2, (800 - fm2.stringWidth(line2)) / 2, y1 + 44)
+                g.color = Color(255, 255, 255, 175)
+                g.drawString(line2, (800 - fm2.stringWidth(line2)) / 2, y1 + 48)
             }
             g.dispose()
             ImageIO.write(img, "png", storageDir.resolve(filename).toFile())
             return "$urlPrefix/$filename"
         }
 
-        // ── Event 1: BTS World Tour (PUBLISHED · MUSIC · 판매중) ─────────────────
-        val e1img = makeImage("event-bts-tour.png",
-            Color(0x1A, 0x1A, 0x2E), Color(0x8B, 0x5C, 0xF6),
-            "BTS World Tour 2026", "Seoul Olympic Main Stadium")
-        val e1 = eventRepository.save(EventEntity(
+        /** EventEntity 저장 */
+        fun saveEvent(
+            contractId: Long?,
+            name: String,
+            desc: String,
+            category: String,
+            venue: String,
+            img: String,
+            startAt: Instant,
+            endAt: Instant,
+            total: Int,
+            remaining: Int,
+            sold: Int,
+            saleStart: Instant,
+            saleEnd: Instant,
+            status: EventStatus,
+            resaleAllowed: Boolean = false,
+            priceWei: BigInteger = wei(0.05),
+        ): EventEntity = eventRepository.save(EventEntity(
             organizer = organizer,
-            contractEventId = BigInteger.valueOf(1),
-            name = "BTS World Tour 2026 - Seoul",
-            description = "세계 최대 K-POP 그룹 BTS의 월드투어 서울 공연. 올림픽 주경기장에서 만나는 특별한 밤. 총 10만 석 규모의 역대 최대 단독 공연.",
-            category = "MUSIC",
-            venue = "서울 올림픽 주경기장",
-            imageUrl = e1img,
-            eventAt = future(100),
-            eventStartAt = future(100),
-            eventEndAt = future(100).plus(3, ChronoUnit.HOURS),
-            ticketPriceWei = wei(0.1),
-            totalTicketCount = 6,
-            remainingTicketCount = 2,
-            soldTicketCount = 4,
-            primarySaleStart = past(10),
-            primarySaleEnd = future(90),
-            resaleAllowed = true,
-            maxResalePriceRate = 130,
-            resaleStart = past(5),
-            resaleEnd = future(95),
-            status = EventStatus.PUBLISHED,
+            contractEventId = contractId?.let { BigInteger.valueOf(it) },
+            name = name,
+            description = desc,
+            category = category,
+            venue = venue,
+            imageUrl = img,
+            eventAt = startAt,
+            eventStartAt = startAt,
+            eventEndAt = endAt,
+            ticketPriceWei = priceWei,
+            totalTicketCount = total,
+            remainingTicketCount = remaining,
+            soldTicketCount = sold,
+            primarySaleStart = saleStart,
+            primarySaleEnd = saleEnd,
+            resaleAllowed = resaleAllowed,
+            maxResalePriceRate = if (resaleAllowed) 130 else 100,
+            resaleStart = if (resaleAllowed) saleStart else null,
+            resaleEnd = if (resaleAllowed) saleEnd else null,
+            status = status,
         ))
 
-        // 6 tickets: AVAILABLE × 2, SOLD × 2, LISTED × 1, USED × 1
-        val t1vip = ticketRepository.save(TicketEntity(
-            event = e1, contractTokenId = BigInteger.valueOf(1001),
-            seatInfo = "VIP-1", sectionName = "VIP",
-            originalPriceWei = wei(0.15), saleStartAt = past(10), saleEndAt = future(90),
-            resaleEnabled = true, resaleCapRate = 13000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e1, contractTokenId = BigInteger.valueOf(1002),
-            seatInfo = "A-1", sectionName = "A",
-            originalPriceWei = wei(0.1), saleStartAt = past(10), saleEndAt = future(90),
-            resaleEnabled = true, resaleCapRate = 13000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e1, owner = organizer, contractTokenId = BigInteger.valueOf(1003),
-            seatInfo = "A-2", sectionName = "A",
-            originalPriceWei = wei(0.1), saleStartAt = past(10), saleEndAt = future(90),
-            resaleEnabled = true, resaleCapRate = 13000, status = TicketStatus.SOLD,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e1, owner = organizer, contractTokenId = BigInteger.valueOf(1004),
-            seatInfo = "B-1", sectionName = "B",
-            originalPriceWei = wei(0.08), saleStartAt = past(10), saleEndAt = future(90),
-            resaleEnabled = true, resaleCapRate = 13000, status = TicketStatus.SOLD,
-        ))
-        val t1listed = ticketRepository.save(TicketEntity(
-            event = e1, owner = organizer, contractTokenId = BigInteger.valueOf(1005),
-            seatInfo = "B-2", sectionName = "B",
-            originalPriceWei = wei(0.08), saleStartAt = past(10), saleEndAt = future(90),
-            resaleEnabled = true, resaleCapRate = 13000, status = TicketStatus.LISTED,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e1, owner = organizer, contractTokenId = BigInteger.valueOf(1006),
-            seatInfo = "C-1", sectionName = "C",
-            originalPriceWei = wei(0.07), saleStartAt = past(10), saleEndAt = future(90),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.USED,
-            usedAt = past(1),
+        /** EventRoundEntity 저장 */
+        fun saveRound(
+            evt: EventEntity,
+            num: Int,
+            eventDate: LocalDate,
+            startHour: Int,
+            endHour: Int,
+            saleStart: Instant,
+            saleEnd: Instant,
+        ): EventRoundEntity = eventRoundRepository.save(EventRoundEntity(
+            event = evt,
+            title = "${num}회차",
+            eventDate = eventDate,
+            startTime = LocalTime.of(startHour, 0),
+            endTime = LocalTime.of(endHour, 0),
+            saleStartAt = saleStart,
+            saleEndAt = saleEnd,
+            useGlobalSalePeriod = false,
         ))
 
-        // ResaleListing for B-2 (LISTED) + Dispute on it
-        val rl1 = resaleListingRepository.save(ResaleListingEntity(
-            ticket = t1listed, seller = organizer,
-            priceWei = wei(0.095), status = ResaleListingStatus.ACTIVE,
-        ))
-        disputeRepository.save(DisputeEntity(
-            reporter = organizer, resaleListing = rl1, ticket = t1listed,
-            type = DisputeType.PAYMENT_ISSUE,
-            description = "리셀 구매 후 결제 처리 중 오류가 발생했습니다. 토큰 ID 1005 티켓 B-2 구매 완료 여부 확인 요청.",
-            status = DisputeStatus.OPEN,
-        ))
+        /**
+         * 회차 티켓 목록 생성.
+         * sections = Triple(섹션명, 수량, 상태). 섹션명은 회차 내에서 유일해야 함.
+         * vararg를 먼저 두고 선택적 usedAt는 named arg로 전달.
+         * SOLD/USED/CANCELLED 티켓의 owner는 항상 organizer.
+         */
+        fun buildTickets(
+            evt: EventEntity,
+            rnd: EventRoundEntity,
+            priceWei: BigInteger,
+            saleStart: Instant,
+            saleEnd: Instant,
+            vararg sections: Triple<String, Int, TicketStatus>,
+            usedAt: Instant? = null,
+        ): List<TicketEntity> = sections.flatMap { (section, count, status) ->
+            (1..count).map { n ->
+                TicketEntity(
+                    event = evt,
+                    owner = if (status == TicketStatus.AVAILABLE) null else organizer,
+                    contractTokenId = BigInteger.valueOf(tokenId++),
+                    seatInfo = "$section-${n.toString().padStart(3, '0')}",
+                    sectionName = section,
+                    eventRoundId = rnd.id,
+                    originalPriceWei = priceWei,
+                    saleStartAt = saleStart,
+                    saleEndAt = saleEnd,
+                    resaleEnabled = false,
+                    resaleCapRate = 10_000,
+                    status = status,
+                    usedAt = if (status == TicketStatus.USED) (usedAt ?: past(1)) else null,
+                )
+            }
+        }
 
-        // ── Event 2: Seoul Tech Summit (PUBLISHED · CONFERENCE · 판매 예정) ──────
-        val e2img = makeImage("event-tech-summit.png",
-            Color(0x0C, 0x44, 0x7C), Color(0x06, 0xB6, 0xD4),
-            "Seoul Tech Summit 2026", "COEX Convention Center")
-        val e2 = eventRepository.save(EventEntity(
-            organizer = organizer,
-            contractEventId = BigInteger.valueOf(2),
-            name = "Seoul Tech Summit 2026",
-            description = "아시아 최대 테크 컨퍼런스. AI, 블록체인, 웹3 분야 글로벌 스피커들이 총출동합니다. 스타트업 네트워킹 세션 포함.",
-            category = "CONFERENCE",
-            venue = "코엑스 컨벤션센터, 서울",
-            imageUrl = e2img,
-            eventAt = future(74),
-            eventStartAt = future(74),
-            eventEndAt = future(74).plus(8, ChronoUnit.HOURS),
-            ticketPriceWei = wei(0.03),
-            totalTicketCount = 5,
-            remainingTicketCount = 3,
-            soldTicketCount = 2,
-            primarySaleStart = future(38),
-            primarySaleEnd = future(70),
-            resaleAllowed = false,
-            maxResalePriceRate = 100,
-            resaleStart = null,
-            resaleEnd = null,
-            status = EventStatus.PUBLISHED,
-        ))
+        fun saveTickets(vararg batches: List<TicketEntity>): Int {
+            val all = batches.flatMap { it }
+            ticketRepository.saveAll(all)
+            return all.size
+        }
 
-        // 5 tickets: AVAILABLE × 3, SOLD × 1, USED × 1
-        ticketRepository.save(TicketEntity(
-            event = e2, contractTokenId = BigInteger.valueOf(2001),
-            seatInfo = "VIP-1", sectionName = "VIP",
-            originalPriceWei = wei(0.08), saleStartAt = future(38), saleEndAt = future(70),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e2, contractTokenId = BigInteger.valueOf(2002),
-            seatInfo = "GEN-1", sectionName = "GENERAL",
-            originalPriceWei = wei(0.03), saleStartAt = future(38), saleEndAt = future(70),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e2, contractTokenId = BigInteger.valueOf(2003),
-            seatInfo = "GEN-2", sectionName = "GENERAL",
-            originalPriceWei = wei(0.03), saleStartAt = future(38), saleEndAt = future(70),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e2, owner = organizer, contractTokenId = BigInteger.valueOf(2004),
-            seatInfo = "SPEAKER-1", sectionName = "SPEAKER",
-            originalPriceWei = wei(0.03), saleStartAt = future(38), saleEndAt = future(70),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.SOLD,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e2, owner = organizer, contractTokenId = BigInteger.valueOf(2005),
-            seatInfo = "SPEAKER-2", sectionName = "SPEAKER",
-            originalPriceWei = wei(0.03), saleStartAt = future(38), saleEndAt = future(70),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.USED,
-            usedAt = past(1),
-        ))
+        val A = TicketStatus.AVAILABLE
+        val S = TicketStatus.SOLD
+        val U = TicketStatus.USED
+        val C = TicketStatus.CANCELLED
 
-        // ── Event 3: 부산국제영화제 (INACTIVE · FILM · 종료) ──────────────────────
-        val e3img = makeImage("event-film-fest.png",
-            Color(0x7C, 0x3A, 0xED), Color(0xDB, 0x27, 0x77),
-            "부산국제영화제 2025", "Busan Cinema Center")
-        val e3 = eventRepository.save(EventEntity(
-            organizer = organizer,
-            contractEventId = BigInteger.valueOf(3),
-            name = "부산국제영화제 2025",
-            description = "아시아 최대 국제영화제. 전 세계 70개국 300편 이상 작품 상영. 거장 감독의 마스터 클래스 및 GV 포함.",
-            category = "FILM",
-            venue = "부산 영화의전당",
-            imageUrl = e3img,
-            eventAt = past(245),
-            eventStartAt = past(245),
-            eventEndAt = past(235),
-            ticketPriceWei = wei(0.015),
-            totalTicketCount = 4,
-            remainingTicketCount = 0,
-            soldTicketCount = 4,
-            primarySaleStart = past(280),
-            primarySaleEnd = past(250),
-            resaleAllowed = true,
-            maxResalePriceRate = 110,
-            resaleStart = past(275),
-            resaleEnd = past(248),
-            status = EventStatus.INACTIVE,
-        ))
+        var totalCount = 0
 
-        // 4 tickets: USED × 2, SOLD × 1, CANCELLED × 1
-        ticketRepository.save(TicketEntity(
-            event = e3, owner = organizer, contractTokenId = BigInteger.valueOf(3001),
-            seatInfo = "SCR-A1", sectionName = "SCREEN-A",
-            originalPriceWei = wei(0.015), saleStartAt = past(280), saleEndAt = past(250),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.USED,
-            usedAt = past(240),
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e3, owner = organizer, contractTokenId = BigInteger.valueOf(3002),
-            seatInfo = "SCR-A2", sectionName = "SCREEN-A",
-            originalPriceWei = wei(0.015), saleStartAt = past(280), saleEndAt = past(250),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.USED,
-            usedAt = past(238),
-        ))
-        val t3sold = ticketRepository.save(TicketEntity(
-            event = e3, owner = organizer, contractTokenId = BigInteger.valueOf(3003),
-            seatInfo = "SCR-B1", sectionName = "SCREEN-B",
-            originalPriceWei = wei(0.015), saleStartAt = past(280), saleEndAt = past(250),
-            resaleEnabled = true, resaleCapRate = 11000, status = TicketStatus.SOLD,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e3, contractTokenId = BigInteger.valueOf(3004),
-            seatInfo = "SCR-C1", sectionName = "SCREEN-C",
-            originalPriceWei = wei(0.015), saleStartAt = past(280), saleEndAt = past(250),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.CANCELLED,
-        ))
+        // ══════════════════════════════════════════════════════════════════════════
+        // E01  여의도 봄꽃 콘서트
+        // R1: 종료·전원입장(USED) / R2: 종료·전원입장(USED) / R3: 판매중·잔여
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-01-spring-concert.png",
+                Color(0xFF, 0x6B, 0x9D), Color(0x8B, 0x1A, 0x5E),
+                "여의도 봄꽃 콘서트", "여의도 한강공원 야외무대")
+            val price = wei(0.08)
+            val e = saveEvent(1, "여의도 봄꽃 콘서트 2026",
+                "벚꽃이 만개한 한강공원 야외무대에서 펼쳐지는 감성 콘서트. 3회차 시리즈 공연.",
+                "CONCERT", "여의도 한강공원 야외무대", img,
+                past(64).plus(19, ChronoUnit.HOURS), past(64).plus(22, ChronoUnit.HOURS),
+                total = 600, remaining = 150, sold = 450,
+                saleStart = past(95), saleEnd = future(36),
+                status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-64), 19, 22, past(95),  past(65))
+            val r2 = saveRound(e, 2, ld(-29), 19, 22, past(68),  past(30))
+            val r3 = saveRound(e, 3, ld(37),  19, 22, past(7),   future(36))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(95), past(65),
+                    Triple("VIP", 20, U), Triple("A", 80, U),
+                    usedAt = past(63)),
+                buildTickets(e, r2, price, past(68), past(30),
+                    Triple("VIP", 30, U), Triple("A", 100, U), Triple("B", 70, U),
+                    usedAt = past(28)),
+                // R3: 150 AVAILABLE + 150 SOLD (섹션명 중복 없이)
+                buildTickets(e, r3, price, past(7), future(36),
+                    Triple("VIP", 50, A), Triple("A", 100, A), Triple("B", 150, S)),
+            )
+        }
 
-        // Dispute — 티켓 미수령 신고 (REVIEWING)
-        disputeRepository.save(DisputeEntity(
-            reporter = organizer, resaleListing = null, ticket = t3sold,
-            type = DisputeType.TICKET_NOT_DELIVERED,
-            description = "SCR-B1 티켓을 리셀 구매 후 앱에서 확인되지 않습니다. 블록체인 토큰 ID 3003 전송 기록 확인 요청.",
-            status = DisputeStatus.REVIEWING,
-        ))
+        // ══════════════════════════════════════════════════════════════════════════
+        // E02  서울 여름 콘서트
+        // R1: 판매중·잔여 / R2: 판매 예정·발행 완료 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-02-summer-concert.png",
+                Color(0xFF, 0x8C, 0x00), Color(0xFF, 0x45, 0x00),
+                "서울 여름 콘서트", "올림픽공원 잔디마당")
+            val price = wei(0.10)
+            val e = saveEvent(2, "서울 여름 콘서트 2026",
+                "뜨거운 여름 밤, 올림픽공원 야외에서 만나는 여름 특별 콘서트.",
+                "CONCERT", "올림픽공원 잔디마당, 서울", img,
+                future(23).plus(19, ChronoUnit.HOURS), future(84).plus(22, ChronoUnit.HOURS),
+                total = 300, remaining = 260, sold = 40,
+                saleStart = past(38), saleEnd = future(83),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(23), 19, 22, past(38),   future(22))
+            val r2 = saveRound(e, 2, ld(53), 19, 22, future(23), future(52))
+            val r3 = saveRound(e, 3, ld(84), 19, 22, future(53), future(83))
+            totalCount += saveTickets(
+                // R1: 60 AVAILABLE + 40 SOLD = 100
+                buildTickets(e, r1, price, past(38), future(22),
+                    Triple("VIP", 20, A), Triple("A", 40, A), Triple("B", 40, S)),
+                // R2: 200 AVAILABLE (판매 예정, 발행은 완료)
+                buildTickets(e, r2, price, future(23), future(52),
+                    Triple("VIP", 30, A), Triple("A", 100, A), Triple("B", 70, A)),
+                // R3 미발행: 티켓 없음
+            )
+        }
 
-        // ── Event 4: 현대미술 특별전 (DRAFT · ART · 미공개) ─────────────────────
-        val e4img = makeImage("event-art-expo.png",
-            Color(0xF5, 0x9E, 0x0B), Color(0xEF, 0x44, 0x44),
-            "현대미술 특별전", "국립현대미술관 서울관")
-        val e4 = eventRepository.save(EventEntity(
-            organizer = organizer,
-            contractEventId = null,
-            name = "현대미술 특별전 — 경계의 상상",
-            description = "국내외 현대미술 작가 30인의 신작. 빛, 공간, 디지털의 경계를 탐구하는 몰입형 전시. 아직 공개되지 않은 드래프트 이벤트입니다.",
-            category = "ART",
-            venue = "국립현대미술관, 서울관",
-            imageUrl = e4img,
-            eventAt = future(157),
-            eventStartAt = future(157),
-            eventEndAt = future(157).plus(6, ChronoUnit.HOURS),
-            ticketPriceWei = wei(0.02),
-            totalTicketCount = 6,
-            remainingTicketCount = 6,
-            soldTicketCount = 0,
-            primarySaleStart = future(117),
-            primarySaleEnd = future(152),
-            resaleAllowed = false,
-            maxResalePriceRate = 100,
-            resaleStart = null,
-            resaleEnd = null,
-            status = EventStatus.DRAFT,
-        ))
+        // ══════════════════════════════════════════════════════════════════════════
+        // E03  부산 록 페스티벌
+        // R1·R2·R3: 판매중 + 전체 매진(SOLD)
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-03-rock-fest.png",
+                Color(0x1A, 0x00, 0x30), Color(0xC7, 0x00, 0x2E),
+                "부산 록 페스티벌", "부산 BEXCO 야외광장")
+            val price = wei(0.12)
+            val e = saveEvent(3, "부산 록 페스티벌 2026",
+                "국내외 록 밴드들이 총출동하는 부산 대형 야외 페스티벌. 3회차 전 회차 매진.",
+                "FESTIVAL", "부산 BEXCO 야외광장", img,
+                future(68).plus(16, ChronoUnit.HOURS), future(128).plus(23, ChronoUnit.HOURS),
+                total = 600, remaining = 0, sold = 600,
+                saleStart = past(30), saleEnd = future(127),
+                status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
+            val r1 = saveRound(e, 1, ld(68),  16, 23, past(30),  future(67))
+            val r2 = saveRound(e, 2, ld(98),  16, 23, past(20),  future(97))
+            val r3 = saveRound(e, 3, ld(128), 16, 23, past(10),  future(127))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(30), future(67),
+                    Triple("VIP", 20, S), Triple("A", 80, S)),
+                buildTickets(e, r2, price, past(20), future(97),
+                    Triple("VIP", 30, S), Triple("A", 100, S), Triple("B", 70, S)),
+                buildTickets(e, r3, price, past(10), future(127),
+                    Triple("VIP", 50, S), Triple("A", 150, S), Triple("B", 100, S)),
+            )
+        }
 
-        // 3 tickets: AVAILABLE × 3 (draft — not purchasable yet)
-        ticketRepository.save(TicketEntity(
-            event = e4, contractTokenId = BigInteger.valueOf(4001),
-            seatInfo = "GAL-A1", sectionName = "GALLERY-A",
-            originalPriceWei = wei(0.02), saleStartAt = future(117), saleEndAt = future(152),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e4, contractTokenId = BigInteger.valueOf(4002),
-            seatInfo = "GAL-A2", sectionName = "GALLERY-A",
-            originalPriceWei = wei(0.02), saleStartAt = future(117), saleEndAt = future(152),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e4, contractTokenId = BigInteger.valueOf(4003),
-            seatInfo = "GAL-B1", sectionName = "GALLERY-B",
-            originalPriceWei = wei(0.025), saleStartAt = future(117), saleEndAt = future(152),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.AVAILABLE,
-        ))
+        // ══════════════════════════════════════════════════════════════════════════
+        // E04  대구 클래식 콘서트
+        // R1·R2·R3: 판매 예정(아직 판매 기간 전), 티켓 발행 완료
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-04-classic.png",
+                Color(0x0C, 0x26, 0x5E), Color(0x14, 0x7F, 0xB5),
+                "대구 클래식 콘서트", "대구 오페라하우스")
+            val price = wei(0.06)
+            val e = saveEvent(4, "대구 클래식 음악 시리즈 2026",
+                "세계 정상급 오케스트라와 함께하는 대구 클래식 음악 시리즈. 3개월에 걸친 세 번의 공연.",
+                "CONCERT", "대구 오페라하우스", img,
+                future(85).plus(19, ChronoUnit.HOURS), future(145).plus(22, ChronoUnit.HOURS),
+                total = 600, remaining = 600, sold = 0,
+                saleStart = future(54), saleEnd = future(144),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(85),  19, 22, future(54),  future(84))
+            val r2 = saveRound(e, 2, ld(115), 19, 22, future(85),  future(114))
+            val r3 = saveRound(e, 3, ld(145), 19, 22, future(115), future(144))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, future(54),  future(84),
+                    Triple("VIP", 20, A), Triple("A", 80, A)),
+                buildTickets(e, r2, price, future(85),  future(114),
+                    Triple("VIP", 30, A), Triple("A", 100, A), Triple("B", 70, A)),
+                buildTickets(e, r3, price, future(115), future(144),
+                    Triple("VIP", 50, A), Triple("A", 150, A), Triple("B", 100, A)),
+            )
+        }
 
-        // ── Event 5: K리그 올스타전 (CANCELLED · SPORTS) ───────────────────────
-        val e5img = makeImage("event-kleague.png",
-            Color(0x06, 0x5F, 0x46), Color(0x0E, 0xA5, 0xE9),
-            "K리그 올스타전 2026", "수원월드컵경기장")
-        val e5 = eventRepository.save(EventEntity(
-            organizer = organizer,
-            contractEventId = BigInteger.valueOf(5),
-            name = "K리그 올스타전 2026",
-            description = "K리그 역대 최고 스타들의 드림팀 대결. 경기장 공사로 인해 행사가 취소되었습니다. 환불이 자동 처리됩니다.",
-            category = "SPORTS",
-            venue = "수원월드컵경기장",
-            imageUrl = e5img,
-            eventAt = future(38),
-            eventStartAt = future(38),
-            eventEndAt = future(38).plus(2, ChronoUnit.HOURS),
-            ticketPriceWei = wei(0.05),
-            totalTicketCount = 5,
-            remainingTicketCount = 2,
-            soldTicketCount = 3,
-            primarySaleStart = past(10),
-            primarySaleEnd = future(30),
-            resaleAllowed = false,
-            maxResalePriceRate = 100,
-            resaleStart = null,
-            resaleEnd = null,
-            status = EventStatus.CANCELLED,
-        ))
+        // ══════════════════════════════════════════════════════════════════════════
+        // E05  인천 K-POP 페스트
+        // R1: 종료·전원입장 / R2: 판매중(오늘 공연) / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-05-kpop.png",
+                Color(0x6B, 0x21, 0xA8), Color(0xEC, 0x48, 0x99),
+                "인천 K-POP 페스트", "인천 송도 컨벤시아")
+            val price = wei(0.09)
+            val todaySaleEnd = future(1)
+            val e = saveEvent(5, "인천 K-POP 페스티벌 2026",
+                "국내 최대 K-POP 신인 발굴 축제. 아이돌 스타부터 신예 아티스트까지.",
+                "FESTIVAL", "인천 송도 컨벤시아 야외광장", img,
+                past(19).plus(18, ChronoUnit.HOURS), future(42).plus(22, ChronoUnit.HOURS),
+                total = 300, remaining = 100, sold = 200,
+                saleStart = past(68), saleEnd = todaySaleEnd,
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-19), 18, 22, past(68),  past(20))
+            val r2 = saveRound(e, 2, ld(0),   18, 22, past(38),  todaySaleEnd)  // 오늘 공연
+            val r3 = saveRound(e, 3, ld(42),  19, 22, future(12), future(41))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(68), past(20),
+                    Triple("VIP", 20, U), Triple("A", 80, U),
+                    usedAt = past(18)),
+                // R2: 100 AVAILABLE + 100 SOLD (섹션명 구분)
+                buildTickets(e, r2, price, past(38), todaySaleEnd,
+                    Triple("VIP", 30, A), Triple("A", 70, A), Triple("B", 100, S)),
+                // R3 미발행
+            )
+        }
 
-        // 5 tickets: CANCELLED × 3, AVAILABLE × 1 (미구매), SOLD × 1
-        ticketRepository.save(TicketEntity(
-            event = e5, contractTokenId = BigInteger.valueOf(5001),
-            seatInfo = "SEC-A1", sectionName = "SEC-A",
-            originalPriceWei = wei(0.05), saleStartAt = past(10), saleEndAt = future(30),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.CANCELLED,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e5, contractTokenId = BigInteger.valueOf(5002),
-            seatInfo = "SEC-A2", sectionName = "SEC-A",
-            originalPriceWei = wei(0.05), saleStartAt = past(10), saleEndAt = future(30),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.CANCELLED,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e5, owner = organizer, contractTokenId = BigInteger.valueOf(5003),
-            seatInfo = "SEC-B1", sectionName = "SEC-B",
-            originalPriceWei = wei(0.05), saleStartAt = past(10), saleEndAt = future(30),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.CANCELLED,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e5, contractTokenId = BigInteger.valueOf(5004),
-            seatInfo = "SEC-B2", sectionName = "SEC-B",
-            originalPriceWei = wei(0.05), saleStartAt = past(10), saleEndAt = future(30),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.AVAILABLE,
-        ))
-        ticketRepository.save(TicketEntity(
-            event = e5, owner = organizer, contractTokenId = BigInteger.valueOf(5005),
-            seatInfo = "SEC-C1", sectionName = "SEC-C",
-            originalPriceWei = wei(0.05), saleStartAt = past(10), saleEndAt = future(30),
-            resaleEnabled = false, resaleCapRate = 10000, status = TicketStatus.SOLD,
-        ))
+        // ══════════════════════════════════════════════════════════════════════════
+        // E06  광주 비엔날레
+        // R1: 판매중·매진 / R2: 판매중·잔여 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-06-biennale.png",
+                Color(0x14, 0x53, 0x2D), Color(0x15, 0xBB, 0x8F),
+                "광주 비엔날레", "국립아시아문화전당")
+            val price = wei(0.04)
+            val e = saveEvent(6, "광주 비엔날레 2026",
+                "현대미술의 현재와 미래를 탐구하는 광주 비엔날레 특별전. 전 세계 60개국 아티스트 참여.",
+                "EXHIBITION", "국립아시아문화전당, 광주", img,
+                future(12).plus(10, ChronoUnit.HOURS), future(72).plus(19, ChronoUnit.HOURS),
+                total = 300, remaining = 100, sold = 200,
+                saleStart = past(38), saleEnd = future(71),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(12), 10, 19, past(38),   future(11))
+            val r2 = saveRound(e, 2, ld(42), 10, 19, past(7),    future(41))
+            val r3 = saveRound(e, 3, ld(72), 10, 19, future(37), future(71))
+            totalCount += saveTickets(
+                // R1: 100 SOLD (매진)
+                buildTickets(e, r1, price, past(38), future(11),
+                    Triple("A", 60, S), Triple("B", 40, S)),
+                // R2: 100 AVAILABLE + 100 SOLD
+                buildTickets(e, r2, price, past(7), future(41),
+                    Triple("A", 100, A), Triple("B", 70, S), Triple("C", 30, A)),
+                // R3 미발행
+            )
+        }
 
-        log.info("[TestDataSeeder] seeded 5 events · 21 tickets · 1 resale listing · 2 disputes · 5 images → {}", storageDir)
+        // ══════════════════════════════════════════════════════════════════════════
+        // E07  제주 음악 축제
+        // R1·R2·R3: 연말 예정, 판매 예정, 티켓 전량 발행 완료
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-07-jeju-music.png",
+                Color(0x06, 0x6B, 0xB2), Color(0x2D, 0xD4, 0xBF),
+                "제주 음악 축제", "제주 탐라문화광장")
+            val price = wei(0.07)
+            val e = saveEvent(7, "제주 국제 음악 축제 2026",
+                "제주 한라산을 배경으로 펼쳐지는 연말 음악 축제. 재즈·클래식·월드뮤직 3가지 테마.",
+                "FESTIVAL", "제주 탐라문화광장", img,
+                future(176).plus(18, ChronoUnit.HOURS), future(190).plus(22, ChronoUnit.HOURS),
+                total = 600, remaining = 600, sold = 0,
+                saleStart = future(145), saleEnd = future(189),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(176), 18, 22, future(145), future(175))
+            val r2 = saveRound(e, 2, ld(183), 18, 22, future(145), future(182))
+            val r3 = saveRound(e, 3, ld(190), 18, 22, future(145), future(189))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, future(145), future(175),
+                    Triple("VIP", 20, A), Triple("A", 80, A)),
+                buildTickets(e, r2, price, future(145), future(182),
+                    Triple("VIP", 30, A), Triple("A", 100, A), Triple("B", 70, A)),
+                buildTickets(e, r3, price, future(145), future(189),
+                    Triple("VIP", 50, A), Triple("A", 150, A), Triple("B", 100, A)),
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E08  서울 AI 컨퍼런스
+        // R1·R2·R3: 모두 종료 (전원 USED)
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-08-ai-conf.png",
+                Color(0x0F, 0x17, 0x2A), Color(0x38, 0xBD, 0xF8),
+                "서울 AI 컨퍼런스", "코엑스 컨벤션센터")
+            val price = wei(0.03)
+            val e = saveEvent(8, "서울 AI & 블록체인 컨퍼런스 2026",
+                "AI·블록체인 분야 글로벌 전문가 100인이 모이는 연례 컨퍼런스. 올해 3회 모두 종료.",
+                "CONFERENCE", "코엑스 컨벤션센터, 서울", img,
+                past(85).plus(9, ChronoUnit.HOURS), past(25).plus(18, ChronoUnit.HOURS),
+                total = 600, remaining = 0, sold = 600,
+                saleStart = past(145), saleEnd = past(26),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-85), 9, 18, past(145), past(86))
+            val r2 = saveRound(e, 2, ld(-55), 9, 18, past(115), past(56))
+            val r3 = saveRound(e, 3, ld(-25), 9, 18, past(85),  past(26))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(145), past(86),
+                    Triple("GEN", 60, U), Triple("VIP", 20, U), Triple("SPK", 20, U),
+                    usedAt = past(84)),
+                buildTickets(e, r2, price, past(115), past(56),
+                    Triple("GEN", 120, U), Triple("VIP", 40, U), Triple("SPK", 40, U),
+                    usedAt = past(54)),
+                buildTickets(e, r3, price, past(85), past(26),
+                    Triple("GEN", 180, U), Triple("VIP", 60, U), Triple("SPK", 60, U),
+                    usedAt = past(24)),
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E09  수원 스포츠 데이
+        // R1: 종료 / R2: 판매중·매진 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-09-sports-day.png",
+                Color(0x14, 0x53, 0x2D), Color(0xCA, 0x8A, 0x04),
+                "수원 스포츠 데이", "수원월드컵경기장")
+            val price = wei(0.05)
+            val e = saveEvent(9, "수원 스포츠 데이 2026",
+                "K리그·농구·배구 복합 스포츠 축제. 3회차 진행 중 2회차는 매진.",
+                "SPORTS", "수원월드컵경기장", img,
+                past(49).plus(14, ChronoUnit.HOURS), future(73).plus(18, ChronoUnit.HOURS),
+                total = 300, remaining = 0, sold = 300,
+                saleStart = past(100), saleEnd = future(72),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-49), 14, 18, past(100), past(50))
+            val r2 = saveRound(e, 2, ld(17),  14, 18, past(38),  future(16))
+            val r3 = saveRound(e, 3, ld(73),  14, 18, future(17), future(72))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(100), past(50),
+                    Triple("GEN-U", 50, U), Triple("GEN-S", 50, S),
+                    usedAt = past(48)),
+                buildTickets(e, r2, price, past(38), future(16),
+                    Triple("GEN", 120, S), Triple("VIP", 80, S)),
+                // R3 미발행
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E10  전주 국제영화제
+        // R1: 판매중·잔여 / R2: 판매 예정·발행 완료 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-10-film-fest.png",
+                Color(0x78, 0x35, 0x0F), Color(0xF9, 0x73, 0x16),
+                "전주 국제영화제", "전주 영화의거리")
+            val price = wei(0.03)
+            val e = saveEvent(10, "전주 국제영화제 2026",
+                "독립·예술 영화의 중심 전주에서 열리는 국제영화제. 50개국 200여 편 상영.",
+                "FILM", "전주 영화의거리 일대", img,
+                future(22).plus(10, ChronoUnit.HOURS), future(82).plus(23, ChronoUnit.HOURS),
+                total = 300, remaining = 260, sold = 40,
+                saleStart = past(24), saleEnd = future(81),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(22), 10, 23, past(24),   future(21))
+            val r2 = saveRound(e, 2, ld(52), 10, 23, future(22), future(51))
+            val r3 = saveRound(e, 3, ld(82), 10, 23, future(52), future(81))
+            totalCount += saveTickets(
+                // R1: 60 AVAILABLE + 40 SOLD = 100
+                buildTickets(e, r1, price, past(24), future(21),
+                    Triple("SCR-A", 60, A), Triple("SCR-B", 40, S)),
+                // R2: 200 AVAILABLE
+                buildTickets(e, r2, price, future(22), future(51),
+                    Triple("SCR-A", 80, A), Triple("SCR-B", 80, A), Triple("SCR-C", 40, A)),
+                // R3 미발행
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E11  대전 EDM 페스트
+        // R1: 판매중·매진 / R2: 판매 예정·발행 완료 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-11-edm.png",
+                Color(0x3B, 0x00, 0x6B), Color(0x7C, 0x3A, 0xED),
+                "대전 EDM 페스트", "대전 엑스포시민광장")
+            val price = wei(0.11)
+            val e = saveEvent(11, "대전 EDM 페스티벌 2026",
+                "DJ 크루와 함께하는 대전 최대 일렉트로닉 댄스 뮤직 페스티벌.",
+                "FESTIVAL", "대전 엑스포시민광장", img,
+                future(32).plus(16, ChronoUnit.HOURS), future(92).plus(24, ChronoUnit.HOURS),
+                total = 300, remaining = 200, sold = 100,
+                saleStart = past(30), saleEnd = future(91),
+                status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
+            val r1 = saveRound(e, 1, ld(32), 16, 23, past(30),   future(31))
+            val r2 = saveRound(e, 2, ld(62), 16, 23, future(32), future(61))
+            val r3 = saveRound(e, 3, ld(92), 16, 23, future(62), future(91))
+            totalCount += saveTickets(
+                // R1: 100 SOLD (매진)
+                buildTickets(e, r1, price, past(30), future(31),
+                    Triple("GEN", 60, S), Triple("VIP", 40, S)),
+                // R2: 200 AVAILABLE (판매 예정, 발행 완료)
+                buildTickets(e, r2, price, future(32), future(61),
+                    Triple("GEN", 130, A), Triple("VIP", 70, A)),
+                // R3 미발행
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E12  울산 마라톤
+        // R1: 종료 / R2: 종료 / R3: 판매중(오늘 대회)·잔여
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-12-marathon.png",
+                Color(0xEA, 0x58, 0x0C), Color(0xFB, 0xBF, 0x24),
+                "울산 마라톤", "울산대공원 출발점")
+            val price = wei(0.02)
+            val e = saveEvent(12, "울산 국제 마라톤 2026",
+                "울산 대공원을 출발점으로 하는 국제 마라톤 대회. 풀·하프·10K 세 가지 코스.",
+                "SPORTS", "울산대공원, 울산", img,
+                past(99).plus(6, ChronoUnit.HOURS), past(99).plus(12, ChronoUnit.HOURS),
+                total = 600, remaining = 150, sold = 450,
+                saleStart = past(160), saleEnd = future(1),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-99), 6, 12, past(160), past(100))
+            val r2 = saveRound(e, 2, ld(-69), 6, 12, past(130), past(70))
+            val r3 = saveRound(e, 3, ld(0),   6, 12, past(30),  future(1))  // 오늘 대회
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(160), past(100),
+                    Triple("FULL", 30, U), Triple("HALF", 40, U), Triple("10K", 30, U),
+                    usedAt = past(98)),
+                buildTickets(e, r2, price, past(130), past(70),
+                    Triple("FULL", 60, U), Triple("HALF", 80, U), Triple("10K", 60, U),
+                    usedAt = past(68)),
+                // R3: 150 AVAILABLE + 150 SOLD = 300
+                buildTickets(e, r3, price, past(30), future(1),
+                    Triple("FULL", 80, A), Triple("HALF", 70, A), Triple("10K", 150, S)),
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E13  경주 역사 문화제
+        // R1: 종료·전원입장 / R2: 판매 기간 종료·이벤트 미래 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-13-gyeongju.png",
+                Color(0x7C, 0x2D, 0x12), Color(0x92, 0x40, 0x0E),
+                "경주 역사 문화제", "경주 첨성대 광장")
+            val price = wei(0.03)
+            val e = saveEvent(13, "경주 역사 문화제 2026",
+                "신라 천년의 역사를 체험하는 경주 대표 문화 축제. R2는 판매 종료, R3는 미발행.",
+                "ETC", "경주 첨성대 광장", img,
+                past(38).plus(10, ChronoUnit.HOURS), future(37).plus(20, ChronoUnit.HOURS),
+                total = 300, remaining = 200, sold = 100,
+                saleStart = past(99), saleEnd = future(36),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-38), 10, 20, past(99),   past(39))
+            val r2 = saveRound(e, 2, ld(7),   10, 20, past(68),   past(1))   // 판매 종료(어제), 공연은 미래
+            val r3 = saveRound(e, 3, ld(37),  10, 20, future(7),  future(36))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(99), past(39),
+                    Triple("GEN", 60, U), Triple("VIP", 40, U),
+                    usedAt = past(37)),
+                // R2: 200 AVAILABLE (판매 종료로 구매 불가지만 티켓은 있음)
+                buildTickets(e, r2, price, past(68), past(1),
+                    Triple("GEN", 130, A), Triple("VIP", 70, A)),
+                // R3 미발행
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E14  창원 항구 페스트
+        // R1: 종료(USED+SOLD) / R2: 오늘부터 판매 시작 / R3: 판매 예정·발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-14-changwon.png",
+                Color(0x0E, 0x7A, 0x9E), Color(0x67, 0xE8, 0xF9),
+                "창원 항구 페스트", "창원 진해 군항제")
+            val price = wei(0.05)
+            val todaySaleStart = Instant.now().truncatedTo(ChronoUnit.HOURS)
+            val e = saveEvent(14, "창원 항구 페스티벌 2026",
+                "창원 진해 군항제에서 펼쳐지는 항구 축제. R2 오늘부터 판매 시작.",
+                "FESTIVAL", "창원 진해 군항 특설무대", img,
+                past(3).plus(15, ChronoUnit.HOURS), future(57).plus(21, ChronoUnit.HOURS),
+                total = 600, remaining = 500, sold = 100,
+                saleStart = past(38), saleEnd = future(56),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-3), 15, 21, past(38),      past(4))
+            val r2 = saveRound(e, 2, ld(27), 15, 21, todaySaleStart, future(26))
+            val r3 = saveRound(e, 3, ld(57), 15, 21, future(27),    future(56))
+            totalCount += saveTickets(
+                // R1: 80 USED + 20 SOLD = 100
+                buildTickets(e, r1, price, past(38), past(4),
+                    Triple("GEN-U", 80, U), Triple("VIP-S", 20, S),
+                    usedAt = past(2)),
+                buildTickets(e, r2, price, todaySaleStart, future(26),
+                    Triple("GEN", 120, A), Triple("VIP", 50, A), Triple("B", 30, A)),
+                buildTickets(e, r3, price, future(27), future(56),
+                    Triple("GEN", 180, A), Triple("VIP", 80, A), Triple("B", 40, A)),
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E15  강릉 해변 축제
+        // R1·R2·R3: 판매중 + 전체 매진
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-15-beach-fest.png",
+                Color(0x0D, 0x47, 0x8A), Color(0xF9, 0xA8, 0x25),
+                "강릉 해변 축제", "강릉 경포해변")
+            val price = wei(0.08)
+            val e = saveEvent(15, "강릉 해변 여름 축제 2026",
+                "동해 최대 해변 축제. 버스킹·푸드트럭·불꽃 쇼까지. 전 회차 매진 행렬.",
+                "FESTIVAL", "강릉 경포해변 특설무대", img,
+                future(42).plus(15, ChronoUnit.HOURS), future(56).plus(23, ChronoUnit.HOURS),
+                total = 600, remaining = 0, sold = 600,
+                saleStart = past(15), saleEnd = future(55),
+                status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
+            val r1 = saveRound(e, 1, ld(42), 15, 23, past(15), future(41))
+            val r2 = saveRound(e, 2, ld(49), 15, 23, past(10), future(48))
+            val r3 = saveRound(e, 3, ld(56), 15, 23, past(5),  future(55))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(15), future(41),
+                    Triple("VIP", 20, S), Triple("A", 80, S)),
+                buildTickets(e, r2, price, past(10), future(48),
+                    Triple("VIP", 30, S), Triple("A", 100, S), Triple("B", 70, S)),
+                buildTickets(e, r3, price, past(5), future(55),
+                    Triple("VIP", 50, S), Triple("A", 150, S), Triple("B", 100, S)),
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E16  춘천 레이크 페스트
+        // R1: 판매 예정·발행 / R2: 미발행 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-16-lake-fest.png",
+                Color(0x16, 0x5A, 0x72), Color(0x34, 0xD3, 0x99),
+                "춘천 레이크 페스트", "의암호 수변공원")
+            val price = wei(0.06)
+            val e = saveEvent(16, "춘천 레이크 페스티벌 2026",
+                "의암호 수변공원에서 펼쳐지는 가을 레이크 페스티벌. R1만 발행, R2·R3는 준비중.",
+                "FESTIVAL", "의암호 수변공원, 춘천", img,
+                future(124).plus(12, ChronoUnit.HOURS), future(138).plus(20, ChronoUnit.HOURS),
+                total = 100, remaining = 100, sold = 0,
+                saleStart = future(93), saleEnd = future(137),
+                status = EventStatus.PUBLISHED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(124), 12, 20, future(93),  future(123))
+            val r2 = saveRound(e, 2, ld(131), 12, 20, future(100), future(130))
+            val r3 = saveRound(e, 3, ld(138), 12, 20, future(107), future(137))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, future(93), future(123),
+                    Triple("GEN", 70, A), Triple("VIP", 30, A)),
+                // R2, R3 미발행
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E17  세종 시민 콘서트  (INACTIVE)
+        // R1: 종료·전원입장 / R2: 종료·일부입장 / R3: 판매 종료·잔여 있음
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-17-sejong.png",
+                Color(0x37, 0x47, 0x51), Color(0x94, 0xA3, 0xB8),
+                "세종 시민 콘서트", "세종 호수공원 야외무대")
+            val price = wei(0.02)
+            val e = saveEvent(17, "세종 시민 콘서트 2026",
+                "세종시민을 위한 무료 콘서트. 현재 비공개 상태로 전환되어 있습니다.",
+                "CONCERT", "세종 호수공원 야외무대", img,
+                past(59).plus(18, ChronoUnit.HOURS), future(1).plus(21, ChronoUnit.HOURS),
+                total = 600, remaining = 200, sold = 400,
+                saleStart = past(120), saleEnd = past(2),
+                status = EventStatus.INACTIVE, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-59), 18, 21, past(120), past(60))
+            val r2 = saveRound(e, 2, ld(-29), 18, 21, past(90),  past(30))
+            val r3 = saveRound(e, 3, ld(1),   18, 21, past(60),  past(2))  // 판매 종료, 공연 내일
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(120), past(60),
+                    Triple("GEN", 60, U), Triple("VIP", 20, U), Triple("B", 20, U),
+                    usedAt = past(58)),
+                buildTickets(e, r2, price, past(90), past(30),
+                    Triple("GEN-U", 90, U), Triple("VIP-U", 30, U), Triple("B-U", 30, U), Triple("GEN-S", 50, S),
+                    usedAt = past(28)),
+                // R3: 200 AVAILABLE + 100 SOLD = 300
+                buildTickets(e, r3, price, past(60), past(2),
+                    Triple("GEN", 150, A), Triple("VIP", 50, S), Triple("B", 100, S)),
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E18  포항 철강 박람회  (INACTIVE · 완전 종료된 2025년 행사)
+        // R1·R2·R3: 모두 종료·전원입장
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-18-pohang.png",
+                Color(0x78, 0x71, 0x6C), Color(0xF9, 0x73, 0x16),
+                "포항 철강 박람회", "포항 POSCO 광장")
+            val price = wei(0.02)
+            val e = saveEvent(18, "포항 철강 산업 박람회 2025",
+                "국내 철강 산업의 과거와 미래를 한 눈에 볼 수 있는 대형 박람회. 2025년 10월 종료.",
+                "ETC", "포항 POSCO 광장", img,
+                past(251).plus(9, ChronoUnit.HOURS), past(222).plus(18, ChronoUnit.HOURS),
+                total = 600, remaining = 0, sold = 600,
+                saleStart = past(370), saleEnd = past(223),
+                status = EventStatus.INACTIVE, priceWei = price)
+            val r1 = saveRound(e, 1, ld(-251), 9, 18, past(370), past(252))
+            val r2 = saveRound(e, 2, ld(-237), 9, 18, past(356), past(238))
+            val r3 = saveRound(e, 3, ld(-222), 9, 18, past(341), past(223))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(370), past(252),
+                    Triple("GEN", 60, U), Triple("VIP", 20, U), Triple("EXH", 20, U),
+                    usedAt = past(250)),
+                buildTickets(e, r2, price, past(356), past(238),
+                    Triple("GEN", 120, U), Triple("VIP", 40, U), Triple("EXH", 40, U),
+                    usedAt = past(236)),
+                buildTickets(e, r3, price, past(341), past(223),
+                    Triple("GEN", 180, U), Triple("VIP", 60, U), Triple("EXH", 60, U),
+                    usedAt = past(221)),
+            )
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E19  안동 민속 대축제  (DRAFT · 초안)
+        // R1·R2·R3: 계획은 있으나 티켓 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-19-andong.png",
+                Color(0x7C, 0x1D, 0x1D), Color(0xCA, 0x8A, 0x04),
+                "안동 민속 대축제", "안동 하회마을")
+            val e = saveEvent(null, "안동 민속 대축제 2026",
+                "유네스코 세계유산 하회마을을 배경으로 펼쳐지는 전통 민속 축제. 기획 중인 초안 이벤트.",
+                "ETC", "안동 하회마을 특설무대", img,
+                future(119).plus(10, ChronoUnit.HOURS), future(121).plus(20, ChronoUnit.HOURS),
+                total = 0, remaining = 0, sold = 0,
+                saleStart = future(88), saleEnd = future(120),
+                status = EventStatus.DRAFT)
+            // 라운드는 기획 단계로 생성, 티켓은 미발행
+            saveRound(e, 1, ld(119), 10, 20, future(88),  future(118))
+            saveRound(e, 2, ld(120), 10, 20, future(88),  future(119))
+            saveRound(e, 3, ld(121), 10, 20, future(88),  future(120))
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // E20  고양 킨텍스 박람회  (CANCELLED · 취소)
+        // R1·R2: CANCELLED 티켓 / R3: 미발행
+        // ══════════════════════════════════════════════════════════════════════════
+        run {
+            val img = makeImage("evt-20-kintex.png",
+                Color(0x1E, 0x3A, 0x5F), Color(0x93, 0xC5, 0xFD),
+                "고양 킨텍스 박람회", "킨텍스 제2전시장")
+            val price = wei(0.04)
+            val e = saveEvent(19, "고양 킨텍스 국제 박람회 2026",
+                "킨텍스 제2전시장에서 열릴 예정이었던 대형 박람회. 시설 공사로 인해 전면 취소.",
+                "ETC", "킨텍스 제2전시장, 고양", img,
+                future(23).plus(10, ChronoUnit.HOURS), future(83).plus(18, ChronoUnit.HOURS),
+                total = 300, remaining = 0, sold = 0,
+                saleStart = past(30), saleEnd = future(82),
+                status = EventStatus.CANCELLED, priceWei = price)
+            val r1 = saveRound(e, 1, ld(23), 10, 18, past(30),   future(22))
+            val r2 = saveRound(e, 2, ld(53), 10, 18, future(23), future(52))
+            val r3 = saveRound(e, 3, ld(83), 10, 18, future(53), future(82))
+            totalCount += saveTickets(
+                buildTickets(e, r1, price, past(30), future(22),
+                    Triple("GEN", 60, C), Triple("VIP", 40, C)),
+                buildTickets(e, r2, price, future(23), future(52),
+                    Triple("GEN", 120, C), Triple("VIP", 80, C)),
+                // R3 미발행 (취소 공지 전 미발행 상태)
+            )
+        }
+
+        log.info(
+            "[TestDataSeeder] seeded 20 events · 60 rounds · {} tickets · 20 poster images → {}",
+            totalCount, storageDir,
+        )
     }
 }
