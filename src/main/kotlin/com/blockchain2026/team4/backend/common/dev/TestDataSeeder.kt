@@ -29,6 +29,7 @@ import java.nio.file.Path
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import javax.imageio.ImageIO
 
@@ -80,6 +81,11 @@ class TestDataSeeder(
         fun past(days: Int): Instant = Instant.now().minus(days.toLong(), ChronoUnit.DAYS)
         fun future(days: Int): Instant = Instant.now().plus(days.toLong(), ChronoUnit.DAYS)
         fun ld(offsetDays: Int): LocalDate = LocalDate.now().plusDays(offsetDays.toLong())
+        /** 회차 시작 1시간 전(UTC) — 티켓 판매 마감 기본값 */
+        fun saleEndFor(daysOffset: Int, startHour: Int): Instant =
+            LocalDate.now().plusDays(daysOffset.toLong())
+                .atTime(startHour, 0).toInstant(ZoneOffset.UTC)
+                .minus(1, ChronoUnit.HOURS)
 
         /** 그라디언트 포스터 이미지 생성 */
         fun makeImage(filename: String, c1: Color, c2: Color, line1: String, line2: String = ""): String {
@@ -232,18 +238,18 @@ class TestDataSeeder(
                 total = 600, remaining = 150, sold = 450,
                 saleStart = past(95), saleEnd = future(36),
                 status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-64), 19, 22, past(95),  past(65))
-            val r2 = saveRound(e, 2, ld(-29), 19, 22, past(68),  past(30))
-            val r3 = saveRound(e, 3, ld(37),  19, 22, past(7),   future(36))
+            val r1 = saveRound(e, 1, ld(-64), 19, 22, past(95),  saleEndFor(-64, 19))
+            val r2 = saveRound(e, 2, ld(-29), 19, 22, past(68),  saleEndFor(-29, 19))
+            val r3 = saveRound(e, 3, ld(37),  19, 22, past(7),   saleEndFor(37, 19))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(95), past(65),
+                buildTickets(e, r1, price, past(95), saleEndFor(-64, 19),
                     Triple("VIP", 20, U), Triple("A", 80, U),
                     usedAt = past(63)),
-                buildTickets(e, r2, price, past(68), past(30),
+                buildTickets(e, r2, price, past(68), saleEndFor(-29, 19),
                     Triple("VIP", 30, U), Triple("A", 100, U), Triple("B", 70, U),
                     usedAt = past(28)),
                 // R3: 150 AVAILABLE + 150 SOLD (섹션명 중복 없이)
-                buildTickets(e, r3, price, past(7), future(36),
+                buildTickets(e, r3, price, past(7), saleEndFor(37, 19),
                     Triple("VIP", 50, A), Triple("A", 100, A), Triple("B", 150, S)),
             )
         }
@@ -264,15 +270,15 @@ class TestDataSeeder(
                 total = 300, remaining = 260, sold = 40,
                 saleStart = past(38), saleEnd = future(83),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(23), 19, 22, past(38),   future(22))
-            val r2 = saveRound(e, 2, ld(53), 19, 22, future(23), future(52))
-            val r3 = saveRound(e, 3, ld(84), 19, 22, future(53), future(83))
+            val r1 = saveRound(e, 1, ld(23), 19, 22, past(38),   saleEndFor(23, 19))
+            val r2 = saveRound(e, 2, ld(53), 19, 22, future(23), saleEndFor(53, 19))
+            val r3 = saveRound(e, 3, ld(84), 19, 22, future(53), saleEndFor(84, 19))
             totalCount += saveTickets(
                 // R1: 60 AVAILABLE + 40 SOLD = 100
-                buildTickets(e, r1, price, past(38), future(22),
+                buildTickets(e, r1, price, past(38), saleEndFor(23, 19),
                     Triple("VIP", 20, A), Triple("A", 40, A), Triple("B", 40, S)),
                 // R2: 200 AVAILABLE (판매 예정, 발행은 완료)
-                buildTickets(e, r2, price, future(23), future(52),
+                buildTickets(e, r2, price, future(23), saleEndFor(53, 19),
                     Triple("VIP", 30, A), Triple("A", 100, A), Triple("B", 70, A)),
                 // R3 미발행: 티켓 없음
             )
@@ -294,15 +300,15 @@ class TestDataSeeder(
                 total = 600, remaining = 0, sold = 600,
                 saleStart = past(30), saleEnd = future(127),
                 status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
-            val r1 = saveRound(e, 1, ld(68),  16, 23, past(30),  future(67))
-            val r2 = saveRound(e, 2, ld(98),  16, 23, past(20),  future(97))
-            val r3 = saveRound(e, 3, ld(128), 16, 23, past(10),  future(127))
+            val r1 = saveRound(e, 1, ld(68),  16, 23, past(30),  saleEndFor(68, 16))
+            val r2 = saveRound(e, 2, ld(98),  16, 23, past(20),  saleEndFor(98, 16))
+            val r3 = saveRound(e, 3, ld(128), 16, 23, past(10),  saleEndFor(128, 16))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(30), future(67),
+                buildTickets(e, r1, price, past(30), saleEndFor(68, 16),
                     Triple("VIP", 20, S), Triple("A", 80, S)),
-                buildTickets(e, r2, price, past(20), future(97),
+                buildTickets(e, r2, price, past(20), saleEndFor(98, 16),
                     Triple("VIP", 30, S), Triple("A", 100, S), Triple("B", 70, S)),
-                buildTickets(e, r3, price, past(10), future(127),
+                buildTickets(e, r3, price, past(10), saleEndFor(128, 16),
                     Triple("VIP", 50, S), Triple("A", 150, S), Triple("B", 100, S)),
             )
         }
@@ -323,15 +329,15 @@ class TestDataSeeder(
                 total = 600, remaining = 600, sold = 0,
                 saleStart = future(54), saleEnd = future(144),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(85),  19, 22, future(54),  future(84))
-            val r2 = saveRound(e, 2, ld(115), 19, 22, future(85),  future(114))
-            val r3 = saveRound(e, 3, ld(145), 19, 22, future(115), future(144))
+            val r1 = saveRound(e, 1, ld(85),  19, 22, future(54),  saleEndFor(85, 19))
+            val r2 = saveRound(e, 2, ld(115), 19, 22, future(85),  saleEndFor(115, 19))
+            val r3 = saveRound(e, 3, ld(145), 19, 22, future(115), saleEndFor(145, 19))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, future(54),  future(84),
+                buildTickets(e, r1, price, future(54),  saleEndFor(85, 19),
                     Triple("VIP", 20, A), Triple("A", 80, A)),
-                buildTickets(e, r2, price, future(85),  future(114),
+                buildTickets(e, r2, price, future(85),  saleEndFor(115, 19),
                     Triple("VIP", 30, A), Triple("A", 100, A), Triple("B", 70, A)),
-                buildTickets(e, r3, price, future(115), future(144),
+                buildTickets(e, r3, price, future(115), saleEndFor(145, 19),
                     Triple("VIP", 50, A), Triple("A", 150, A), Triple("B", 100, A)),
             )
         }
@@ -353,15 +359,15 @@ class TestDataSeeder(
                 total = 300, remaining = 100, sold = 200,
                 saleStart = past(68), saleEnd = todaySaleEnd,
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-19), 18, 22, past(68),  past(20))
-            val r2 = saveRound(e, 2, ld(0),   18, 22, past(38),  todaySaleEnd)  // 오늘 공연
-            val r3 = saveRound(e, 3, ld(42),  19, 22, future(12), future(41))
+            val r1 = saveRound(e, 1, ld(-19), 18, 22, past(68),   saleEndFor(-19, 18))
+            val r2 = saveRound(e, 2, ld(0),   18, 22, past(38),   saleEndFor(0, 18))  // 오늘 18:00 한 시간 전
+            val r3 = saveRound(e, 3, ld(42),  19, 22, future(12), saleEndFor(42, 19))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(68), past(20),
+                buildTickets(e, r1, price, past(68), saleEndFor(-19, 18),
                     Triple("VIP", 20, U), Triple("A", 80, U),
                     usedAt = past(18)),
                 // R2: 100 AVAILABLE + 100 SOLD (섹션명 구분)
-                buildTickets(e, r2, price, past(38), todaySaleEnd,
+                buildTickets(e, r2, price, past(38), saleEndFor(0, 18),
                     Triple("VIP", 30, A), Triple("A", 70, A), Triple("B", 100, S)),
                 // R3 미발행
             )
@@ -383,15 +389,15 @@ class TestDataSeeder(
                 total = 300, remaining = 100, sold = 200,
                 saleStart = past(38), saleEnd = future(71),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(12), 10, 19, past(38),   future(11))
-            val r2 = saveRound(e, 2, ld(42), 10, 19, past(7),    future(41))
-            val r3 = saveRound(e, 3, ld(72), 10, 19, future(37), future(71))
+            val r1 = saveRound(e, 1, ld(12), 10, 19, past(38),   saleEndFor(12, 10))
+            val r2 = saveRound(e, 2, ld(42), 10, 19, past(7),    saleEndFor(42, 10))
+            val r3 = saveRound(e, 3, ld(72), 10, 19, future(37), saleEndFor(72, 10))
             totalCount += saveTickets(
                 // R1: 100 SOLD (매진)
-                buildTickets(e, r1, price, past(38), future(11),
+                buildTickets(e, r1, price, past(38), saleEndFor(12, 10),
                     Triple("A", 60, S), Triple("B", 40, S)),
                 // R2: 100 AVAILABLE + 100 SOLD
-                buildTickets(e, r2, price, past(7), future(41),
+                buildTickets(e, r2, price, past(7), saleEndFor(42, 10),
                     Triple("A", 100, A), Triple("B", 70, S), Triple("C", 30, A)),
                 // R3 미발행
             )
@@ -413,15 +419,15 @@ class TestDataSeeder(
                 total = 600, remaining = 600, sold = 0,
                 saleStart = future(145), saleEnd = future(189),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(176), 18, 22, future(145), future(175))
-            val r2 = saveRound(e, 2, ld(183), 18, 22, future(145), future(182))
-            val r3 = saveRound(e, 3, ld(190), 18, 22, future(145), future(189))
+            val r1 = saveRound(e, 1, ld(176), 18, 22, future(145), saleEndFor(176, 18))
+            val r2 = saveRound(e, 2, ld(183), 18, 22, future(145), saleEndFor(183, 18))
+            val r3 = saveRound(e, 3, ld(190), 18, 22, future(145), saleEndFor(190, 18))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, future(145), future(175),
+                buildTickets(e, r1, price, future(145), saleEndFor(176, 18),
                     Triple("VIP", 20, A), Triple("A", 80, A)),
-                buildTickets(e, r2, price, future(145), future(182),
+                buildTickets(e, r2, price, future(145), saleEndFor(183, 18),
                     Triple("VIP", 30, A), Triple("A", 100, A), Triple("B", 70, A)),
-                buildTickets(e, r3, price, future(145), future(189),
+                buildTickets(e, r3, price, future(145), saleEndFor(190, 18),
                     Triple("VIP", 50, A), Triple("A", 150, A), Triple("B", 100, A)),
             )
         }
@@ -442,17 +448,17 @@ class TestDataSeeder(
                 total = 600, remaining = 0, sold = 600,
                 saleStart = past(145), saleEnd = past(26),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-85), 9, 18, past(145), past(86))
-            val r2 = saveRound(e, 2, ld(-55), 9, 18, past(115), past(56))
-            val r3 = saveRound(e, 3, ld(-25), 9, 18, past(85),  past(26))
+            val r1 = saveRound(e, 1, ld(-85), 9, 18, past(145), saleEndFor(-85, 9))
+            val r2 = saveRound(e, 2, ld(-55), 9, 18, past(115), saleEndFor(-55, 9))
+            val r3 = saveRound(e, 3, ld(-25), 9, 18, past(85),  saleEndFor(-25, 9))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(145), past(86),
+                buildTickets(e, r1, price, past(145), saleEndFor(-85, 9),
                     Triple("GEN", 60, U), Triple("VIP", 20, U), Triple("SPK", 20, U),
                     usedAt = past(84)),
-                buildTickets(e, r2, price, past(115), past(56),
+                buildTickets(e, r2, price, past(115), saleEndFor(-55, 9),
                     Triple("GEN", 120, U), Triple("VIP", 40, U), Triple("SPK", 40, U),
                     usedAt = past(54)),
-                buildTickets(e, r3, price, past(85), past(26),
+                buildTickets(e, r3, price, past(85), saleEndFor(-25, 9),
                     Triple("GEN", 180, U), Triple("VIP", 60, U), Triple("SPK", 60, U),
                     usedAt = past(24)),
             )
@@ -474,14 +480,14 @@ class TestDataSeeder(
                 total = 300, remaining = 0, sold = 300,
                 saleStart = past(100), saleEnd = future(72),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-49), 14, 18, past(100), past(50))
-            val r2 = saveRound(e, 2, ld(17),  14, 18, past(38),  future(16))
-            val r3 = saveRound(e, 3, ld(73),  14, 18, future(17), future(72))
+            val r1 = saveRound(e, 1, ld(-49), 14, 18, past(100), saleEndFor(-49, 14))
+            val r2 = saveRound(e, 2, ld(17),  14, 18, past(38),  saleEndFor(17, 14))
+            val r3 = saveRound(e, 3, ld(73),  14, 18, future(17), saleEndFor(73, 14))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(100), past(50),
+                buildTickets(e, r1, price, past(100), saleEndFor(-49, 14),
                     Triple("GEN-U", 50, U), Triple("GEN-S", 50, S),
                     usedAt = past(48)),
-                buildTickets(e, r2, price, past(38), future(16),
+                buildTickets(e, r2, price, past(38), saleEndFor(17, 14),
                     Triple("GEN", 120, S), Triple("VIP", 80, S)),
                 // R3 미발행
             )
@@ -503,15 +509,15 @@ class TestDataSeeder(
                 total = 300, remaining = 260, sold = 40,
                 saleStart = past(24), saleEnd = future(81),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(22), 10, 23, past(24),   future(21))
-            val r2 = saveRound(e, 2, ld(52), 10, 23, future(22), future(51))
-            val r3 = saveRound(e, 3, ld(82), 10, 23, future(52), future(81))
+            val r1 = saveRound(e, 1, ld(22), 10, 23, past(24),   saleEndFor(22, 10))
+            val r2 = saveRound(e, 2, ld(52), 10, 23, future(22), saleEndFor(52, 10))
+            val r3 = saveRound(e, 3, ld(82), 10, 23, future(52), saleEndFor(82, 10))
             totalCount += saveTickets(
                 // R1: 60 AVAILABLE + 40 SOLD = 100
-                buildTickets(e, r1, price, past(24), future(21),
+                buildTickets(e, r1, price, past(24), saleEndFor(22, 10),
                     Triple("SCR-A", 60, A), Triple("SCR-B", 40, S)),
                 // R2: 200 AVAILABLE
-                buildTickets(e, r2, price, future(22), future(51),
+                buildTickets(e, r2, price, future(22), saleEndFor(52, 10),
                     Triple("SCR-A", 80, A), Triple("SCR-B", 80, A), Triple("SCR-C", 40, A)),
                 // R3 미발행
             )
@@ -533,15 +539,15 @@ class TestDataSeeder(
                 total = 300, remaining = 200, sold = 100,
                 saleStart = past(30), saleEnd = future(91),
                 status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
-            val r1 = saveRound(e, 1, ld(32), 16, 23, past(30),   future(31))
-            val r2 = saveRound(e, 2, ld(62), 16, 23, future(32), future(61))
-            val r3 = saveRound(e, 3, ld(92), 16, 23, future(62), future(91))
+            val r1 = saveRound(e, 1, ld(32), 16, 23, past(30),   saleEndFor(32, 16))
+            val r2 = saveRound(e, 2, ld(62), 16, 23, future(32), saleEndFor(62, 16))
+            val r3 = saveRound(e, 3, ld(92), 16, 23, future(62), saleEndFor(92, 16))
             totalCount += saveTickets(
                 // R1: 100 SOLD (매진)
-                buildTickets(e, r1, price, past(30), future(31),
+                buildTickets(e, r1, price, past(30), saleEndFor(32, 16),
                     Triple("GEN", 60, S), Triple("VIP", 40, S)),
                 // R2: 200 AVAILABLE (판매 예정, 발행 완료)
-                buildTickets(e, r2, price, future(32), future(61),
+                buildTickets(e, r2, price, future(32), saleEndFor(62, 16),
                     Triple("GEN", 130, A), Triple("VIP", 70, A)),
                 // R3 미발행
             )
@@ -563,18 +569,18 @@ class TestDataSeeder(
                 total = 600, remaining = 150, sold = 450,
                 saleStart = past(160), saleEnd = future(1),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-99), 6, 12, past(160), past(100))
-            val r2 = saveRound(e, 2, ld(-69), 6, 12, past(130), past(70))
-            val r3 = saveRound(e, 3, ld(0),   6, 12, past(30),  future(1))  // 오늘 대회
+            val r1 = saveRound(e, 1, ld(-99), 6, 12, past(160), saleEndFor(-99, 6))
+            val r2 = saveRound(e, 2, ld(-69), 6, 12, past(130), saleEndFor(-69, 6))
+            val r3 = saveRound(e, 3, ld(0),   6, 12, past(30),  saleEndFor(0, 6))  // 오늘 06:00 한 시간 전 마감
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(160), past(100),
+                buildTickets(e, r1, price, past(160), saleEndFor(-99, 6),
                     Triple("FULL", 30, U), Triple("HALF", 40, U), Triple("10K", 30, U),
                     usedAt = past(98)),
-                buildTickets(e, r2, price, past(130), past(70),
+                buildTickets(e, r2, price, past(130), saleEndFor(-69, 6),
                     Triple("FULL", 60, U), Triple("HALF", 80, U), Triple("10K", 60, U),
                     usedAt = past(68)),
                 // R3: 150 AVAILABLE + 150 SOLD = 300
-                buildTickets(e, r3, price, past(30), future(1),
+                buildTickets(e, r3, price, past(30), saleEndFor(0, 6),
                     Triple("FULL", 80, A), Triple("HALF", 70, A), Triple("10K", 150, S)),
             )
         }
@@ -595,11 +601,11 @@ class TestDataSeeder(
                 total = 300, remaining = 200, sold = 100,
                 saleStart = past(99), saleEnd = future(36),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-38), 10, 20, past(99),   past(39))
-            val r2 = saveRound(e, 2, ld(7),   10, 20, past(68),   past(1))   // 판매 종료(어제), 공연은 미래
-            val r3 = saveRound(e, 3, ld(37),  10, 20, future(7),  future(36))
+            val r1 = saveRound(e, 1, ld(-38), 10, 20, past(99),  saleEndFor(-38, 10))
+            val r2 = saveRound(e, 2, ld(7),   10, 20, past(68),  past(1))   // 판매 종료(어제), 공연은 미래 — 의도적 조기 마감
+            val r3 = saveRound(e, 3, ld(37),  10, 20, future(7), saleEndFor(37, 10))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(99), past(39),
+                buildTickets(e, r1, price, past(99), saleEndFor(-38, 10),
                     Triple("GEN", 60, U), Triple("VIP", 40, U),
                     usedAt = past(37)),
                 // R2: 200 AVAILABLE (판매 종료로 구매 불가지만 티켓은 있음)
@@ -626,17 +632,17 @@ class TestDataSeeder(
                 total = 600, remaining = 500, sold = 100,
                 saleStart = past(38), saleEnd = future(56),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-3), 15, 21, past(38),      past(4))
-            val r2 = saveRound(e, 2, ld(27), 15, 21, todaySaleStart, future(26))
-            val r3 = saveRound(e, 3, ld(57), 15, 21, future(27),    future(56))
+            val r1 = saveRound(e, 1, ld(-3), 15, 21, past(38),      saleEndFor(-3, 15))
+            val r2 = saveRound(e, 2, ld(27), 15, 21, todaySaleStart, saleEndFor(27, 15))
+            val r3 = saveRound(e, 3, ld(57), 15, 21, future(27),    saleEndFor(57, 15))
             totalCount += saveTickets(
                 // R1: 80 USED + 20 SOLD = 100
-                buildTickets(e, r1, price, past(38), past(4),
+                buildTickets(e, r1, price, past(38), saleEndFor(-3, 15),
                     Triple("GEN-U", 80, U), Triple("VIP-S", 20, S),
                     usedAt = past(2)),
-                buildTickets(e, r2, price, todaySaleStart, future(26),
+                buildTickets(e, r2, price, todaySaleStart, saleEndFor(27, 15),
                     Triple("GEN", 120, A), Triple("VIP", 50, A), Triple("B", 30, A)),
-                buildTickets(e, r3, price, future(27), future(56),
+                buildTickets(e, r3, price, future(27), saleEndFor(57, 15),
                     Triple("GEN", 180, A), Triple("VIP", 80, A), Triple("B", 40, A)),
             )
         }
@@ -657,15 +663,15 @@ class TestDataSeeder(
                 total = 600, remaining = 0, sold = 600,
                 saleStart = past(15), saleEnd = future(55),
                 status = EventStatus.PUBLISHED, resaleAllowed = true, priceWei = price)
-            val r1 = saveRound(e, 1, ld(42), 15, 23, past(15), future(41))
-            val r2 = saveRound(e, 2, ld(49), 15, 23, past(10), future(48))
-            val r3 = saveRound(e, 3, ld(56), 15, 23, past(5),  future(55))
+            val r1 = saveRound(e, 1, ld(42), 15, 23, past(15), saleEndFor(42, 15))
+            val r2 = saveRound(e, 2, ld(49), 15, 23, past(10), saleEndFor(49, 15))
+            val r3 = saveRound(e, 3, ld(56), 15, 23, past(5),  saleEndFor(56, 15))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(15), future(41),
+                buildTickets(e, r1, price, past(15), saleEndFor(42, 15),
                     Triple("VIP", 20, S), Triple("A", 80, S)),
-                buildTickets(e, r2, price, past(10), future(48),
+                buildTickets(e, r2, price, past(10), saleEndFor(49, 15),
                     Triple("VIP", 30, S), Triple("A", 100, S), Triple("B", 70, S)),
-                buildTickets(e, r3, price, past(5), future(55),
+                buildTickets(e, r3, price, past(5), saleEndFor(56, 15),
                     Triple("VIP", 50, S), Triple("A", 150, S), Triple("B", 100, S)),
             )
         }
@@ -686,11 +692,11 @@ class TestDataSeeder(
                 total = 100, remaining = 100, sold = 0,
                 saleStart = future(93), saleEnd = future(137),
                 status = EventStatus.PUBLISHED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(124), 12, 20, future(93),  future(123))
-            val r2 = saveRound(e, 2, ld(131), 12, 20, future(100), future(130))
-            val r3 = saveRound(e, 3, ld(138), 12, 20, future(107), future(137))
+            val r1 = saveRound(e, 1, ld(124), 12, 20, future(93),  saleEndFor(124, 12))
+            val r2 = saveRound(e, 2, ld(131), 12, 20, future(100), saleEndFor(131, 12))
+            val r3 = saveRound(e, 3, ld(138), 12, 20, future(107), saleEndFor(138, 12))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, future(93), future(123),
+                buildTickets(e, r1, price, future(93), saleEndFor(124, 12),
                     Triple("GEN", 70, A), Triple("VIP", 30, A)),
                 // R2, R3 미발행
             )
@@ -712,14 +718,14 @@ class TestDataSeeder(
                 total = 600, remaining = 200, sold = 400,
                 saleStart = past(120), saleEnd = past(2),
                 status = EventStatus.INACTIVE, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-59), 18, 21, past(120), past(60))
-            val r2 = saveRound(e, 2, ld(-29), 18, 21, past(90),  past(30))
-            val r3 = saveRound(e, 3, ld(1),   18, 21, past(60),  past(2))  // 판매 종료, 공연 내일
+            val r1 = saveRound(e, 1, ld(-59), 18, 21, past(120), saleEndFor(-59, 18))
+            val r2 = saveRound(e, 2, ld(-29), 18, 21, past(90),  saleEndFor(-29, 18))
+            val r3 = saveRound(e, 3, ld(1),   18, 21, past(60),  past(2))  // 판매 종료(이틀 전), 공연 내일 — 의도적 조기 마감
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(120), past(60),
+                buildTickets(e, r1, price, past(120), saleEndFor(-59, 18),
                     Triple("GEN", 60, U), Triple("VIP", 20, U), Triple("B", 20, U),
                     usedAt = past(58)),
-                buildTickets(e, r2, price, past(90), past(30),
+                buildTickets(e, r2, price, past(90), saleEndFor(-29, 18),
                     Triple("GEN-U", 90, U), Triple("VIP-U", 30, U), Triple("B-U", 30, U), Triple("GEN-S", 50, S),
                     usedAt = past(28)),
                 // R3: 200 AVAILABLE + 100 SOLD = 300
@@ -744,17 +750,17 @@ class TestDataSeeder(
                 total = 600, remaining = 0, sold = 600,
                 saleStart = past(370), saleEnd = past(223),
                 status = EventStatus.INACTIVE, priceWei = price)
-            val r1 = saveRound(e, 1, ld(-251), 9, 18, past(370), past(252))
-            val r2 = saveRound(e, 2, ld(-237), 9, 18, past(356), past(238))
-            val r3 = saveRound(e, 3, ld(-222), 9, 18, past(341), past(223))
+            val r1 = saveRound(e, 1, ld(-251), 9, 18, past(370), saleEndFor(-251, 9))
+            val r2 = saveRound(e, 2, ld(-237), 9, 18, past(356), saleEndFor(-237, 9))
+            val r3 = saveRound(e, 3, ld(-222), 9, 18, past(341), saleEndFor(-222, 9))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(370), past(252),
+                buildTickets(e, r1, price, past(370), saleEndFor(-251, 9),
                     Triple("GEN", 60, U), Triple("VIP", 20, U), Triple("EXH", 20, U),
                     usedAt = past(250)),
-                buildTickets(e, r2, price, past(356), past(238),
+                buildTickets(e, r2, price, past(356), saleEndFor(-237, 9),
                     Triple("GEN", 120, U), Triple("VIP", 40, U), Triple("EXH", 40, U),
                     usedAt = past(236)),
-                buildTickets(e, r3, price, past(341), past(223),
+                buildTickets(e, r3, price, past(341), saleEndFor(-222, 9),
                     Triple("GEN", 180, U), Triple("VIP", 60, U), Triple("EXH", 60, U),
                     usedAt = past(221)),
             )
@@ -776,9 +782,9 @@ class TestDataSeeder(
                 saleStart = future(88), saleEnd = future(120),
                 status = EventStatus.DRAFT)
             // 라운드는 기획 단계로 생성, 티켓은 미발행
-            saveRound(e, 1, ld(119), 10, 20, future(88),  future(118))
-            saveRound(e, 2, ld(120), 10, 20, future(88),  future(119))
-            saveRound(e, 3, ld(121), 10, 20, future(88),  future(120))
+            saveRound(e, 1, ld(119), 10, 20, future(88), saleEndFor(119, 10))
+            saveRound(e, 2, ld(120), 10, 20, future(88), saleEndFor(120, 10))
+            saveRound(e, 3, ld(121), 10, 20, future(88), saleEndFor(121, 10))
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -797,13 +803,13 @@ class TestDataSeeder(
                 total = 300, remaining = 0, sold = 0,
                 saleStart = past(30), saleEnd = future(82),
                 status = EventStatus.CANCELLED, priceWei = price)
-            val r1 = saveRound(e, 1, ld(23), 10, 18, past(30),   future(22))
-            val r2 = saveRound(e, 2, ld(53), 10, 18, future(23), future(52))
-            val r3 = saveRound(e, 3, ld(83), 10, 18, future(53), future(82))
+            val r1 = saveRound(e, 1, ld(23), 10, 18, past(30),   saleEndFor(23, 10))
+            val r2 = saveRound(e, 2, ld(53), 10, 18, future(23), saleEndFor(53, 10))
+            val r3 = saveRound(e, 3, ld(83), 10, 18, future(53), saleEndFor(83, 10))
             totalCount += saveTickets(
-                buildTickets(e, r1, price, past(30), future(22),
+                buildTickets(e, r1, price, past(30), saleEndFor(23, 10),
                     Triple("GEN", 60, C), Triple("VIP", 40, C)),
-                buildTickets(e, r2, price, future(23), future(52),
+                buildTickets(e, r2, price, future(23), saleEndFor(53, 10),
                     Triple("GEN", 120, C), Triple("VIP", 80, C)),
                 // R3 미발행 (취소 공지 전 미발행 상태)
             )
