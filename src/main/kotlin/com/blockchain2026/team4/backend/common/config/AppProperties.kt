@@ -12,6 +12,7 @@ data class AppProperties(
     val errors: Errors = Errors(),
     val storage: Storage = Storage(),
     val blockchain: Blockchain = Blockchain(),
+    val devData: DevData = DevData(),
 ) {
     data class Jwt(
         val issuer: String = "blockchain-2026-team4",
@@ -44,6 +45,10 @@ data class AppProperties(
     data class Storage(
         val imageDirectory: String = "./storage/images",
         val publicUrlPrefix: String = "/images",
+    )
+
+    data class DevData(
+        val seed: Boolean = true,
     )
 
     data class Blockchain(

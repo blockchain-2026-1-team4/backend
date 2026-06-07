@@ -58,6 +58,8 @@ app:
   storage:
     image-directory: ${IMAGE_DIRECTORY:./storage/images}
     public-url-prefix: ${IMAGE_PUBLIC_URL_PREFIX:/images}
+  dev-data:
+    seed: ${DEV_DATA_SEED:true}
   blockchain:
     enabled: ${APP_BLOCKCHAIN_ENABLED:false}
     network-name: ${BLOCKCHAIN_NETWORK_NAME:kaia-kairos-testnet}
