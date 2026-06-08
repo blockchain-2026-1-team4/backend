@@ -1,5 +1,6 @@
 package com.blockchain2026.team4.backend.auth.facade
 
+import com.blockchain2026.team4.backend.auth.controller.request.DevLoginRequest
 import com.blockchain2026.team4.backend.auth.controller.request.EmailLoginRequest
 import com.blockchain2026.team4.backend.auth.controller.request.EmailRegisterRequest
 import com.blockchain2026.team4.backend.auth.controller.request.WalletLoginRequest
@@ -10,6 +11,7 @@ import com.blockchain2026.team4.backend.auth.dto.EmailLoginCommand
 import com.blockchain2026.team4.backend.auth.dto.EmailRegisterCommand
 import com.blockchain2026.team4.backend.auth.dto.WalletLoginCommand
 import com.blockchain2026.team4.backend.auth.mapper.AuthApiMapper
+import java.util.UUID
 import com.blockchain2026.team4.backend.auth.service.AuthService
 import org.springframework.stereotype.Component
 
@@ -37,4 +39,7 @@ class AuthFacade(
 
     fun emailLogin(request: EmailLoginRequest): AuthTokenResponse =
         authApiMapper.toResponse(authService.emailLogin(EmailLoginCommand(request.email, request.password)))
+
+    fun devLogin(request: DevLoginRequest): AuthTokenResponse =
+        authApiMapper.toResponse(authService.devLogin(UUID.fromString(request.userId)))
 }

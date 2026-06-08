@@ -40,3 +40,8 @@ data class EmailLoginRequest(
     @field:NotBlank
     val password: String,
 )
+
+data class DevLoginRequest(
+    @field:NotBlank
+    val userId: String,
+)

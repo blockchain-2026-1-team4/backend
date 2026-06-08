@@ -7,6 +7,7 @@ import com.blockchain2026.team4.backend.auth.dto.WalletLoginCommand
 import com.blockchain2026.team4.backend.auth.dto.WalletNonceDto
 import com.blockchain2026.team4.backend.auth.entity.WalletLoginNonceEntity
 import com.blockchain2026.team4.backend.auth.repository.WalletLoginNonceRepository
+import com.blockchain2026.team4.backend.common.config.AppProperties
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
 import com.blockchain2026.team4.backend.common.security.JwtProvider
@@ -21,6 +22,7 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Base64
+import java.util.UUID
 
 @Service
 class AuthService(
@@ -29,6 +31,7 @@ class AuthService(
     private val userService: UserService,
     private val passwordEncoder: PasswordEncoder,
     private val jwtProvider: JwtProvider,
+    private val appProperties: AppProperties,
 ) {
     private val secureRandom = SecureRandom()
 
@@ -88,6 +91,15 @@ class AuthService(
         if (!passwordEncoder.matches(command.password, passwordHash)) {
             throw BadCredentialsException("Invalid credentials")
         }
+        return issueTokens(user)
+    }
+
+    @Transactional(readOnly = true)
+    fun devLogin(userId: UUID): AuthTokensDto {
+        if (!appProperties.devAuth.enabled) {
+            throw BusinessException(ErrorCode.FORBIDDEN, "개발 환경이 아닙니다.")
+        }
+        val user = userService.getUser(userId)
         return issueTokens(user)
     }
 

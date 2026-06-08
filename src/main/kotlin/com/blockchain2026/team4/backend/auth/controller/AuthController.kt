@@ -1,5 +1,6 @@
 package com.blockchain2026.team4.backend.auth.controller
 
+import com.blockchain2026.team4.backend.auth.controller.request.DevLoginRequest
 import com.blockchain2026.team4.backend.auth.controller.request.EmailLoginRequest
 import com.blockchain2026.team4.backend.auth.controller.request.EmailRegisterRequest
 import com.blockchain2026.team4.backend.auth.controller.request.WalletLoginRequest
@@ -40,4 +41,9 @@ class AuthController(
     @PostMapping("/email/login")
     fun emailLogin(@Valid @RequestBody request: EmailLoginRequest): AuthTokenResponse =
         authFacade.emailLogin(request)
+
+    @Operation(summary = "개발 계정 로그인", description = "개발/시연 환경에서 테스트 계정으로 즉시 로그인합니다. devAuth.enabled가 false면 403을 반환합니다.")
+    @PostMapping("/dev/login")
+    fun devLogin(@Valid @RequestBody request: DevLoginRequest): AuthTokenResponse =
+        authFacade.devLogin(request)
 }
