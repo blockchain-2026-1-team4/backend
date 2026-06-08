@@ -131,6 +131,37 @@ class TestDataSeeder(
             return "$urlPrefix/$filename"
         }
 
+        fun fetchOrMake(
+            sourceUrl: String,
+            baseName: String,
+            c1: Color, c2: Color,
+            line1: String, line2: String = "",
+        ): String {
+            val jpgFile = storageDir.resolve("$baseName.jpg").toFile()
+            if (jpgFile.exists() && jpgFile.length() > 5_000L) return "$urlPrefix/$baseName.jpg"
+            return try {
+                val conn = java.net.URI.create(sourceUrl).toURL().openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 10_000
+                conn.readTimeout = 20_000
+                conn.setRequestProperty("User-Agent", "TrustTicket-DevSeeder/1.0")
+                conn.instanceFollowRedirects = true
+                if (conn.responseCode in 200..299) {
+                    conn.inputStream.use { input -> jpgFile.outputStream().use { input.copyTo(it) } }
+                    "$urlPrefix/$baseName.jpg"
+                } else {
+                    log.warn("[TestDataSeeder] image HTTP ${conn.responseCode} ($sourceUrl) — using placeholder")
+                    makeImage("$baseName.png", c1, c2, line1, line2)
+                }
+            } catch (e: Exception) {
+                log.warn("[TestDataSeeder] image download failed ($sourceUrl): ${e.message} — using placeholder")
+                makeImage("$baseName.png", c1, c2, line1, line2)
+            }
+        }
+
+        // 이미지 ID 변경: https://unsplash.com/photos/{ID} 에서 미리 확인 후 수정
+        fun unsplash(id: String) =
+            "https://images.unsplash.com/$id?w=800&h=450&fit=crop&auto=format"
+
         fun saveEvent(
             organizer: UserEntity,
             contractId: Long?,
@@ -276,7 +307,8 @@ class TestDataSeeder(
         // R1: 종료·전원입장 / R2: 종료·전원입장 / R3: 판매중·잔여
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-01-spring-concert.png",
+            val img = fetchOrMake(unsplash("photo-1493589976221-c2357c31ad77"), // 벚꽃 나무·강변 (unsplash.com/photos/Lm5rkxzgiFQ)
+                "evt-01-spring-concert",
                 Color(0xFF, 0x6B, 0x9D), Color(0x8B, 0x1A, 0x5E),
                 "여의도 봄꽃 콘서트", "여의도 한강공원 야외무대")
             val price = wei(0.08)
@@ -311,7 +343,8 @@ class TestDataSeeder(
         // R1: 판매중·잔여 / R2: 판매 예정·발행 완료 / R3: 미발행
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-02-summer-concert.png",
+            val img = fetchOrMake(unsplash("photo-1429962714451-bb934ecdc4ec"), // 야외 콘서트 (unsplash.com/photos/photo-1429962714451-bb934ecdc4ec)
+                "evt-02-summer-concert",
                 Color(0xFF, 0x8C, 0x00), Color(0xFF, 0x45, 0x00),
                 "서울 여름 콘서트", "올림픽공원 잔디마당")
             val price = wei(0.10)
@@ -337,7 +370,8 @@ class TestDataSeeder(
         // E03  부산 록 페스티벌  (ORGANIZER_A · resale · 진행 예정 · 전 회차 매진)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-03-rock-fest.png",
+            val img = fetchOrMake(unsplash("photo-1470229722913-7c0e2dbbafd3"), // 록 콘서트 (unsplash.com/photos/photo-1470229722913-7c0e2dbbafd3)
+                "evt-03-rock-fest",
                 Color(0x1A, 0x00, 0x30), Color(0xC7, 0x00, 0x2E),
                 "부산 록 페스티벌", "부산 BEXCO 야외광장")
             val price = wei(0.12)
@@ -367,7 +401,8 @@ class TestDataSeeder(
         // E04  대구 클래식 콘서트  (ORGANIZER_A · 판매 예정)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-04-classic.png",
+            val img = fetchOrMake(unsplash("photo-1507838153414-b4b713384a76"), // 오케스트라 (unsplash.com/photos/photo-1507838153414-b4b713384a76)
+                "evt-04-classic",
                 Color(0x0C, 0x26, 0x5E), Color(0x14, 0x7F, 0xB5),
                 "대구 클래식 콘서트", "대구 오페라하우스")
             val price = wei(0.06)
@@ -395,7 +430,8 @@ class TestDataSeeder(
         // E05  인천 K-POP 페스트  (ORGANIZER_A · R1 종료·입장완료 / R2 오늘)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-05-kpop.png",
+            val img = fetchOrMake(unsplash("photo-1540575467063-178a50c2df87"), // 화려한 콘서트 조명 (unsplash.com/photos/photo-1540575467063-178a50c2df87)
+                "evt-05-kpop",
                 Color(0x6B, 0x21, 0xA8), Color(0xEC, 0x48, 0x99),
                 "인천 K-POP 페스트", "인천 송도 컨벤시아")
             val price = wei(0.09)
@@ -423,7 +459,8 @@ class TestDataSeeder(
         // R1: 판매중·매진 / R2: 판매중·잔여 / R3: 미발행
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-06-biennale.png",
+            val img = fetchOrMake(unsplash("photo-1524758631624-e2822e304c36"), // 아트 갤러리 (unsplash.com/photos/photo-1524758631624-e2822e304c36)
+                "evt-06-biennale",
                 Color(0x14, 0x53, 0x2D), Color(0x15, 0xBB, 0x8F),
                 "광주 비엔날레", "국립아시아문화전당")
             val price = wei(0.04)
@@ -450,7 +487,8 @@ class TestDataSeeder(
         // R1·R2·R3: 판매 예정, 티켓 전량 발행 완료
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-07-jeju-music.png",
+            val img = fetchOrMake(unsplash("photo-1516450360452-9312f5e86fc7"), // 야외 음악 페스티벌 (unsplash.com/photos/photo-1516450360452-9312f5e86fc7)
+                "evt-07-jeju-music",
                 Color(0x06, 0x6B, 0xB2), Color(0x2D, 0xD4, 0xBF),
                 "제주 음악 축제", "제주 탐라문화광장")
             val price = wei(0.07)
@@ -479,7 +517,8 @@ class TestDataSeeder(
         // 체크인 기록 생성 대상 (R3 첫 20장)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-08-ai-conf.png",
+            val img = fetchOrMake(unsplash("photo-1485827404703-89b55fcc595e"), // 테크 컨퍼런스 (unsplash.com/photos/photo-1485827404703-89b55fcc595e)
+                "evt-08-ai-conf",
                 Color(0x0F, 0x17, 0x2A), Color(0x38, 0xBD, 0xF8),
                 "서울 AI 컨퍼런스", "코엑스 컨벤션센터")
             val price = wei(0.03)
@@ -513,7 +552,8 @@ class TestDataSeeder(
         // R1: 종료 / R2: 판매중·매진 / R3: 미발행
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-09-sports-day.png",
+            val img = fetchOrMake(unsplash("photo-1542751371-adc38448a05e"), // 스포츠 경기장 (unsplash.com/photos/photo-1542751371-adc38448a05e)
+                "evt-09-sports-day",
                 Color(0x14, 0x53, 0x2D), Color(0xCA, 0x8A, 0x04),
                 "수원 스포츠 데이", "수원월드컵경기장")
             val price = wei(0.05)
@@ -540,7 +580,8 @@ class TestDataSeeder(
         // E10  전주 국제영화제  (ORGANIZER_A)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-10-film-fest.png",
+            val img = fetchOrMake(unsplash("photo-1485846234645-a62644f84728"), // 영화관 (unsplash.com/photos/photo-1485846234645-a62644f84728)
+                "evt-10-film-fest",
                 Color(0x78, 0x35, 0x0F), Color(0xF9, 0x73, 0x16),
                 "전주 국제영화제", "전주 영화의거리")
             val price = wei(0.03)
@@ -567,7 +608,8 @@ class TestDataSeeder(
         // R1: 판매중·매진 / R2: 판매 예정·발행 완료 / R3: 미발행
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-11-edm.png",
+            val img = fetchOrMake(unsplash("photo-1493225457124-a3eb161ffa5f"), // EDM 공연 (unsplash.com/photos/photo-1493225457124-a3eb161ffa5f)
+                "evt-11-edm",
                 Color(0x3B, 0x00, 0x6B), Color(0x7C, 0x3A, 0xED),
                 "대전 EDM 페스트", "대전 엑스포시민광장")
             val price = wei(0.11)
@@ -594,7 +636,8 @@ class TestDataSeeder(
         // R1·R2: 종료·전원입장 / R3: 오늘 대회
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-12-marathon.png",
+            val img = fetchOrMake(unsplash("photo-1552674605-db6ffd4facb5"), // 마라톤 (unsplash.com/photos/photo-1552674605-db6ffd4facb5)
+                "evt-12-marathon",
                 Color(0xEA, 0x58, 0x0C), Color(0xFB, 0xBF, 0x24),
                 "울산 마라톤", "울산대공원 출발점")
             val price = wei(0.02)
@@ -626,7 +669,8 @@ class TestDataSeeder(
         // R1: 종료 / R2: 판매 종료·공연 미래 / R3: 미발행
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-13-gyeongju.png",
+            val img = fetchOrMake(unsplash("photo-1519677100203-a0e668c92439"), // 역사 건축물 (unsplash.com/photos/photo-1519677100203-a0e668c92439)
+                "evt-13-gyeongju",
                 Color(0x7C, 0x2D, 0x12), Color(0x92, 0x40, 0x0E),
                 "경주 역사 문화제", "경주 첨성대 광장")
             val price = wei(0.03)
@@ -654,7 +698,8 @@ class TestDataSeeder(
         // R1: 종료(USED+SOLD) / R2: 오늘부터 판매 / R3: 판매 예정
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-14-changwon.png",
+            val img = fetchOrMake(unsplash("photo-1464822759023-fed622ff2c3b"), // 항구 (unsplash.com/photos/photo-1464822759023-fed622ff2c3b)
+                "evt-14-changwon",
                 Color(0x0E, 0x7A, 0x9E), Color(0x67, 0xE8, 0xF9),
                 "창원 항구 페스트", "창원 진해 군항제")
             val price = wei(0.05)
@@ -684,7 +729,8 @@ class TestDataSeeder(
         // E15  강릉 해변 축제  (ORGANIZER_A · resale · 전 회차 매진)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-15-beach-fest.png",
+            val img = fetchOrMake(unsplash("photo-1507525428034-b723cf961d3e"), // 해변 (unsplash.com/photos/photo-1507525428034-b723cf961d3e)
+                "evt-15-beach-fest",
                 Color(0x0D, 0x47, 0x8A), Color(0xF9, 0xA8, 0x25),
                 "강릉 해변 축제", "강릉 경포해변")
             val price = wei(0.08)
@@ -713,7 +759,8 @@ class TestDataSeeder(
         // R1: 발행 완료 / R2·R3: 미발행
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-16-lake-fest.png",
+            val img = fetchOrMake(unsplash("photo-1501854140801-50d01698950b"), // 호수 (unsplash.com/photos/photo-1501854140801-50d01698950b)
+                "evt-16-lake-fest",
                 Color(0x16, 0x5A, 0x72), Color(0x34, 0xD3, 0x99),
                 "춘천 레이크 페스트", "의암호 수변공원")
             val price = wei(0.06)
@@ -738,7 +785,8 @@ class TestDataSeeder(
         // R1: 종료·전원입장 / R2: 종료·일부입장 / R3: 판매 종료·잔여 있음
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-17-sejong.png",
+            val img = fetchOrMake(unsplash("photo-1459749411175-04bf5292ceea"), // 야외 음악 행사 (unsplash.com/photos/photo-1459749411175-04bf5292ceea)
+                "evt-17-sejong",
                 Color(0x37, 0x47, 0x51), Color(0x94, 0xA3, 0xB8),
                 "세종 시민 콘서트", "세종 호수공원 야외무대")
             val price = wei(0.02)
@@ -768,7 +816,8 @@ class TestDataSeeder(
         // E18  포항 철강 박람회  (ORGANIZER_A · INACTIVE · 완전 종료 2025년 행사)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-18-pohang.png",
+            val img = fetchOrMake(unsplash("photo-1518709766631-a6a7f45921c3"), // 산업 시설 (unsplash.com/photos/photo-1518709766631-a6a7f45921c3)
+                "evt-18-pohang",
                 Color(0x78, 0x71, 0x6C), Color(0xF9, 0x73, 0x16),
                 "포항 철강 박람회", "포항 POSCO 광장")
             val price = wei(0.02)
@@ -799,7 +848,8 @@ class TestDataSeeder(
         // E19  안동 민속 대축제  (ORGANIZER_B · DRAFT · 초안)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-19-andong.png",
+            val img = fetchOrMake(unsplash("photo-1555993539-1732b0258235"), // 전통 문화 (unsplash.com/photos/photo-1555993539-1732b0258235)
+                "evt-19-andong",
                 Color(0x7C, 0x1D, 0x1D), Color(0xCA, 0x8A, 0x04),
                 "안동 민속 대축제", "안동 하회마을")
             val e = saveEvent(orgB, null, "안동 민속 대축제 2026",
@@ -818,7 +868,8 @@ class TestDataSeeder(
         // E20  고양 킨텍스 박람회  (ORGANIZER_B · CANCELLED · 취소)
         // ══════════════════════════════════════════════════════════════════════════
         run {
-            val img = makeImage("evt-20-kintex.png",
+            val img = fetchOrMake(unsplash("photo-1511578314322-379afb476865"), // 컨벤션 센터 (unsplash.com/photos/photo-1511578314322-379afb476865)
+                "evt-20-kintex",
                 Color(0x1E, 0x3A, 0x5F), Color(0x93, 0xC5, 0xFD),
                 "고양 킨텍스 박람회", "킨텍스 제2전시장")
             val price = wei(0.04)
