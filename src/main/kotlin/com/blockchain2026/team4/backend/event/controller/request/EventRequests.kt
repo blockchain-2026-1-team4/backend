@@ -5,7 +5,6 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
-import java.math.BigInteger
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -41,7 +40,7 @@ data class EventCreateRequest(
 
     val endsAt: Instant? = null,
 
-    val ticketPriceWei: BigInteger? = null,
+    val ticketPriceWei: String? = null,
 
     val totalTicketCount: Int? = null,
 

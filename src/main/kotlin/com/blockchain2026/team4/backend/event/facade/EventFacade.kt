@@ -77,7 +77,7 @@ class EventFacade(
                     eventAt = start,
                     eventStartAt = start,
                     eventEndAt = end,
-                    ticketPriceWei = request.ticketPriceWei ?: BigInteger.ONE,
+                    ticketPriceWei = request.ticketPriceWei?.trim()?.let { runCatching { BigInteger(it) }.getOrNull() }?.takeIf { it > BigInteger.ZERO } ?: BigInteger.ONE,
                     totalTicketCount = request.totalTicketCount ?: 0,
                     primarySaleStart = saleStart,
                     primarySaleEnd = saleEnd,
