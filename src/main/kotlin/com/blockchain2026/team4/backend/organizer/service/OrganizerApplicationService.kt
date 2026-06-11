@@ -65,19 +65,9 @@ class OrganizerApplicationService(
             if (appProperties.blockchain.enabled) {
                 val organizerWallet = wallet
                     ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "지갑 주소가 있는 사용자만 온체인 주최자 권한을 승인할 수 있습니다.")
-                val submission = trustTicketGateway.confirmOrganizerAdded(
-                    organizerWallet = organizerWallet,
-                    transactionHash = requireTransactionHash(command.transactionHash),
-                )
-                blockchainTransactionService.record(submission)
+                blockchainTransactionService.record(trustTicketGateway.addOrganizer(organizerWallet))
             } else {
-                wallet?.let {
-                    val submission = command.transactionHash
-                        ?.takeIf { hash -> hash.isNotBlank() }
-                        ?.let { hash -> trustTicketGateway.confirmOrganizerAdded(it, hash) }
-                        ?: trustTicketGateway.addOrganizer(it)
-                    blockchainTransactionService.record(submission)
-                }
+                wallet?.let { blockchainTransactionService.record(trustTicketGateway.addOrganizer(it)) }
             }
         }
         return organizerApplicationMapper.toDto(application)
@@ -102,7 +92,4 @@ class OrganizerApplicationService(
         )
     }
 
-    private fun requireTransactionHash(transactionHash: String?): String =
-        transactionHash?.takeIf { it.isNotBlank() }
-            ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "관리자 지갑에서 서명한 주최자 승인 트랜잭션 해시가 필요합니다.")
 }
