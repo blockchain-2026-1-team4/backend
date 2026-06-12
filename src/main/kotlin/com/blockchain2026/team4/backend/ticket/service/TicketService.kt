@@ -1,5 +1,6 @@
 package com.blockchain2026.team4.backend.ticket.service
 
+import com.blockchain2026.team4.backend.blockchain.dto.ContractEventCommand
 import com.blockchain2026.team4.backend.blockchain.gateway.TrustTicketGateway
 import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransactionService
 import com.blockchain2026.team4.backend.common.config.AppProperties
@@ -19,6 +20,8 @@ import com.blockchain2026.team4.backend.user.entity.UserRole
 import com.blockchain2026.team4.backend.user.service.UserService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigInteger
 import java.time.Instant
 import java.util.UUID
@@ -32,6 +35,7 @@ class TicketService(
     private val blockchainTransactionService: BlockchainTransactionService,
     private val appProperties: AppProperties,
     private val ticketMapper: TicketMapper,
+    private val ticketMintingService: TicketMintingService,
 ) {
     @Transactional
     fun issueTickets(organizerId: UUID, eventId: UUID, command: TicketIssueCommand): List<TicketDto> {
@@ -78,25 +82,50 @@ class TicketService(
         }
 
         val existing = ticketRepository.countByEventId(eventId)
-        command.totalTicketCount?.takeIf { it > event.totalTicketCount }?.let {
+        val plannedTotal = command.totalTicketCount?.coerceAtLeast(existing.toInt() + issueItems.size)
+            ?: (existing.toInt() + issueItems.size)
+        plannedTotal.takeIf { it > event.totalTicketCount }?.let {
             event.totalTicketCount = it
             event.remainingTicketCount = (it - event.soldTicketCount).coerceAtLeast(0)
         }
         if (event.totalTicketCount > 0 && existing + issueItems.size > event.totalTicketCount) {
             throw BusinessException(ErrorCode.CONFLICT, "발행 가능한 티켓 수량을 초과했습니다.")
         }
-        val contractEventId = event.contractEventId
-            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "컨트랙트 이벤트 ID가 없는 이벤트입니다. 이벤트 생성 상태를 확인해주세요.")
 
+        // contractEventId 없음 = 아직 블록체인 이벤트 미생성 → 실제 수량이 확정된 지금 createEvent 호출
+        if (event.contractEventId == null) {
+            val minPriceWei = command.ticketSections.minOfOrNull { it.priceWei }
+                ?: event.ticketPriceWei.coerceAtLeast(BigInteger.ONE)
+            val createSubmission = trustTicketGateway.createEvent(
+                ContractEventCommand(
+                    eventName = event.name,
+                    eventTimestamp = event.eventAt.epochSecond.toBigInteger(),
+                    ticketPriceWei = minPriceWei,
+                    totalTicketCount = event.totalTicketCount.coerceAtLeast(1).toBigInteger(),
+                    primarySaleStart = event.primarySaleStart.epochSecond.toBigInteger(),
+                    primarySaleEnd = event.primarySaleEnd.epochSecond.toBigInteger(),
+                    resaleAllowed = event.resaleAllowed,
+                    maxResalePriceRate = event.maxResalePriceRate.toBigInteger(),
+                    resaleStart = (event.resaleStart ?: event.primarySaleStart).epochSecond.toBigInteger(),
+                    resaleEnd = (event.resaleEnd ?: event.primarySaleEnd).epochSecond.toBigInteger(),
+                ),
+            )
+            blockchainTransactionService.record(createSubmission)
+            if (appProperties.blockchain.enabled && createSubmission.contractEventId == null) {
+                throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "온체인 EventCreated 로그에서 eventId를 확인하지 못했습니다.")
+            }
+            event.contractEventId = createSubmission.contractEventId
+        }
+
+        val contractEventId = event.contractEventId
+            ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "컨트랙트 이벤트 ID가 없는 이벤트입니다.")
+
+        // contractTokenId = null로 즉시 저장, 민팅은 트랜잭션 커밋 후 백그라운드에서 진행
         val saved = issueItems.map { (seatInfo, sectionName, sectionPolicy) ->
-            val submission = trustTicketGateway.mintTicket(contractEventId, seatInfo)
-            blockchainTransactionService.record(submission)
-            val contractTokenId = submission.contractTokenId
-                ?: throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "민팅된 티켓의 컨트랙트 토큰 ID를 확인할 수 없습니다.")
             ticketRepository.save(
                 TicketEntity(
                     event = event,
-                    contractTokenId = contractTokenId,
+                    contractTokenId = null,
                     seatInfo = seatInfo,
                     sectionName = sectionName,
                     eventRoundId = sectionPolicy?.eventRoundId,
@@ -108,6 +137,14 @@ class TicketService(
                 ),
             )
         }
+
+        val mintItems = saved.map { it.id to it.seatInfo }
+        val mintContractEventId = contractEventId
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                ticketMintingService.mintAllAsync(mintItems, mintContractEventId)
+            }
+        })
 
         if (command.ticketSections.any { it.resaleEnabled }) {
             event.resaleAllowed = true

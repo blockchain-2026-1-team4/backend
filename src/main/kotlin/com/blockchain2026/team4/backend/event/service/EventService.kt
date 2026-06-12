@@ -1,6 +1,5 @@
 package com.blockchain2026.team4.backend.event.service
 
-import com.blockchain2026.team4.backend.blockchain.dto.ContractEventCommand
 import com.blockchain2026.team4.backend.blockchain.gateway.TrustTicketGateway
 import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransactionService
 import com.blockchain2026.team4.backend.common.config.AppProperties
@@ -52,28 +51,11 @@ class EventService(
         val organizer = userService.requireRole(organizerId, UserRole.ORGANIZER)
         val organizerEntity = userService.findEntity(organizer.id)
 
-        val submission = trustTicketGateway.createEvent(
-            ContractEventCommand(
-                eventName = command.name,
-                eventTimestamp = command.eventAt.epochSecond.toBigInteger(),
-                ticketPriceWei = command.ticketPriceWei,
-                totalTicketCount = command.totalTicketCount.coerceAtLeast(1).toBigInteger(),
-                primarySaleStart = command.primarySaleStart.epochSecond.toBigInteger(),
-                primarySaleEnd = command.primarySaleEnd.epochSecond.toBigInteger(),
-                resaleAllowed = command.resaleAllowed,
-                maxResalePriceRate = command.maxResalePriceRate.toBigInteger(),
-                resaleStart = (command.resaleStart ?: command.primarySaleStart).epochSecond.toBigInteger(),
-                resaleEnd = (command.resaleEnd ?: command.primarySaleEnd).epochSecond.toBigInteger(),
-            ),
-        )
-        blockchainTransactionService.record(submission)
-        if (appProperties.blockchain.enabled && submission.contractEventId == null) {
-            throw BusinessException(ErrorCode.BLOCKCHAIN_TRANSACTION_FAILED, "온체인 EventCreated 로그에서 eventId를 확인하지 못했습니다.")
-        }
+        // 블록체인 createEvent는 실제 totalTicketCount가 확정되는 issueTickets 시점에 호출
         val event = eventRepository.save(
             EventEntity(
                 organizer = organizerEntity,
-                contractEventId = submission.contractEventId,
+                contractEventId = null,
                 name = command.name,
                 description = command.description,
                 category = command.category,

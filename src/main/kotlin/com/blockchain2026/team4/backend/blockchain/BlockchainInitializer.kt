@@ -21,14 +21,23 @@ class BlockchainInitializer(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun run(args: ApplicationArguments) {
+        val operatorAddress = Credentials.create(appProperties.blockchain.operatorPrivateKey).address
+        log.info("[BlockchainInit] operator 주소 확인: $operatorAddress")
+
         try {
-            val operatorAddress = Credentials.create(appProperties.blockchain.operatorPrivateKey).address
-            log.info("[BlockchainInit] operator 주소 확인: $operatorAddress")
             val submission = trustTicketGateway.addValidator(operatorAddress)
             blockchainTransactionService.record(submission)
             log.info("[BlockchainInit] operator VALIDATOR_ROLE 부여 완료: ${submission.transactionHash}")
         } catch (e: Exception) {
             log.warn("[BlockchainInit] operator VALIDATOR_ROLE 부여 실패 (이미 있거나 네트워크 오류): ${e.message}")
+        }
+
+        try {
+            val submission = trustTicketGateway.addOrganizer(operatorAddress)
+            blockchainTransactionService.record(submission)
+            log.info("[BlockchainInit] operator ORGANIZER_ROLE 부여 완료: ${submission.transactionHash}")
+        } catch (e: Exception) {
+            log.warn("[BlockchainInit] operator ORGANIZER_ROLE 부여 실패 (이미 있거나 네트워크 오류): ${e.message}")
         }
     }
 }
