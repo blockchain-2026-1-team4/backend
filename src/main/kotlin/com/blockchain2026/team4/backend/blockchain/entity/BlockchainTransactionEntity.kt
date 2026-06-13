@@ -8,6 +8,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.PrePersist
 import jakarta.persistence.PreUpdate
 import jakarta.persistence.Table
+import java.math.BigInteger
 import java.time.Instant
 import java.util.UUID
 
@@ -30,6 +31,12 @@ class BlockchainTransactionEntity(
 
     @Column(name = "error_message", columnDefinition = "text")
     var errorMessage: String? = null,
+
+    @Column(name = "contract_event_id", precision = 78, scale = 0)
+    var contractEventId: BigInteger? = null,
+
+    @Column(name = "contract_token_id", precision = 78, scale = 0)
+    var contractTokenId: BigInteger? = null,
 
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),

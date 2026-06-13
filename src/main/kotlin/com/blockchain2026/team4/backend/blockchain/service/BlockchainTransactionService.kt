@@ -23,6 +23,8 @@ class BlockchainTransactionService(
                     transactionHash = submission.transactionHash,
                     status = submission.status,
                     errorMessage = submission.errorMessage,
+                    contractEventId = submission.contractEventId,
+                    contractTokenId = submission.contractTokenId,
                 ),
             ),
         )

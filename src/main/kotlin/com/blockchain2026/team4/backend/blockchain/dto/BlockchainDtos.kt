@@ -11,6 +11,8 @@ data class BlockchainTransactionDto(
     val transactionHash: String?,
     val status: BlockchainTransactionStatus,
     val errorMessage: String?,
+    val contractEventId: BigInteger?,
+    val contractTokenId: BigInteger?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
