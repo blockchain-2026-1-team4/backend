@@ -95,6 +95,25 @@ abstract class ApiIntegrationTestSupport {
 
     protected fun iso(instant: Instant): String = instant.toString()
 
+    protected fun eventually(
+        timeoutMillis: Long = 5_000,
+        intervalMillis: Long = 50,
+        assertion: () -> Unit,
+    ) {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        var lastError: AssertionError? = null
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                assertion()
+                return
+            } catch (error: AssertionError) {
+                lastError = error
+                Thread.sleep(intervalMillis)
+            }
+        }
+        throw lastError ?: AssertionError("Condition was not satisfied within ${timeoutMillis}ms")
+    }
+
     protected data class TestWallet(
         val keyPair: ECKeyPair,
         val address: String,
