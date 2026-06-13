@@ -6,6 +6,7 @@ import com.blockchain2026.team4.backend.blockchain.service.BlockchainTransaction
 import com.blockchain2026.team4.backend.common.config.AppProperties
 import com.blockchain2026.team4.backend.common.error.BusinessException
 import com.blockchain2026.team4.backend.common.error.ErrorCode
+import com.blockchain2026.team4.backend.event.entity.EventEntity
 import com.blockchain2026.team4.backend.event.entity.EventStatus
 import com.blockchain2026.team4.backend.event.service.EventService
 import com.blockchain2026.team4.backend.ticket.dto.TicketDto
@@ -81,9 +82,13 @@ class TicketService(
             throw BusinessException(ErrorCode.CONFLICT, "이미 발행된 좌석 번호입니다: $duplicatedExisting")
         }
 
+        val blockchainPolicy = resolveBlockchainIssuePolicy(event, command)
         val existing = ticketRepository.countByEventId(eventId)
         val plannedTotal = command.totalTicketCount?.coerceAtLeast(existing.toInt() + issueItems.size)
             ?: (existing.toInt() + issueItems.size)
+        if (appProperties.blockchain.enabled && event.contractEventId != null && plannedTotal > event.totalTicketCount) {
+            throw BusinessException(ErrorCode.CONFLICT, "블록체인 이벤트는 최초 생성 후 총 발행 수량을 늘릴 수 없습니다.")
+        }
         plannedTotal.takeIf { it > event.totalTicketCount }?.let {
             event.totalTicketCount = it
             event.remainingTicketCount = (it - event.soldTicketCount).coerceAtLeast(0)
@@ -94,20 +99,28 @@ class TicketService(
 
         // contractEventId 없음 = 아직 블록체인 이벤트 미생성 → 실제 수량이 확정된 지금 createEvent 호출
         if (event.contractEventId == null) {
-            val minPriceWei = command.ticketSections.minOfOrNull { it.priceWei }
-                ?: event.ticketPriceWei.coerceAtLeast(BigInteger.ONE)
+            val createPolicy = blockchainPolicy ?: BlockchainIssuePolicy(
+                ticketPriceWei = command.ticketSections.minOfOrNull { it.priceWei }
+                    ?: event.ticketPriceWei.coerceAtLeast(BigInteger.ONE),
+                primarySaleStart = event.primarySaleStart,
+                primarySaleEnd = event.primarySaleEnd,
+                resaleAllowed = event.resaleAllowed,
+                maxResalePriceRate = event.maxResalePriceRate,
+                resaleStart = event.resaleStart,
+                resaleEnd = event.resaleEnd,
+            )
             val createSubmission = trustTicketGateway.createEvent(
                 ContractEventCommand(
                     eventName = event.name,
                     eventTimestamp = event.eventAt.epochSecond.toBigInteger(),
-                    ticketPriceWei = minPriceWei,
+                    ticketPriceWei = createPolicy.ticketPriceWei,
                     totalTicketCount = event.totalTicketCount.coerceAtLeast(1).toBigInteger(),
-                    primarySaleStart = event.primarySaleStart.epochSecond.toBigInteger(),
-                    primarySaleEnd = event.primarySaleEnd.epochSecond.toBigInteger(),
-                    resaleAllowed = event.resaleAllowed,
-                    maxResalePriceRate = event.maxResalePriceRate.toBigInteger(),
-                    resaleStart = (event.resaleStart ?: event.primarySaleStart).epochSecond.toBigInteger(),
-                    resaleEnd = (event.resaleEnd ?: event.primarySaleEnd).epochSecond.toBigInteger(),
+                    primarySaleStart = createPolicy.primarySaleStart.epochSecond.toBigInteger(),
+                    primarySaleEnd = createPolicy.primarySaleEnd.epochSecond.toBigInteger(),
+                    resaleAllowed = createPolicy.resaleAllowed,
+                    maxResalePriceRate = createPolicy.maxResalePriceRate.toBigInteger(),
+                    resaleStart = (createPolicy.resaleStart ?: createPolicy.primarySaleStart).epochSecond.toBigInteger(),
+                    resaleEnd = (createPolicy.resaleEnd ?: createPolicy.primarySaleEnd).epochSecond.toBigInteger(),
                 ),
             )
             blockchainTransactionService.record(createSubmission)
@@ -175,7 +188,14 @@ class TicketService(
         }
 
         val canceled = ticketMapper.toDtos(tickets)
+        if (appProperties.blockchain.enabled) {
+            tickets.mapNotNull { it.contractTokenId }.forEach { contractTokenId ->
+                blockchainTransactionService.record(trustTicketGateway.burnUnissuedTicket(contractTokenId))
+            }
+        }
         ticketRepository.deleteAll(tickets)
+        event.totalTicketCount = (event.totalTicketCount - tickets.size).coerceAtLeast(0)
+        event.remainingTicketCount = (event.remainingTicketCount - tickets.size).coerceAtLeast(0)
         return canceled
     }
 
@@ -301,4 +321,78 @@ class TicketService(
     private fun requireTransactionHash(transactionHash: String?): String =
         transactionHash?.takeIf { it.isNotBlank() }
             ?: throw BusinessException(ErrorCode.INVALID_REQUEST, "사용자 지갑에서 서명한 트랜잭션 해시가 필요합니다.")
+
+    private fun resolveBlockchainIssuePolicy(event: EventEntity, command: TicketIssueCommand): BlockchainIssuePolicy? {
+        if (!appProperties.blockchain.enabled) return null
+        if (command.ticketSections.isEmpty()) {
+            return BlockchainIssuePolicy.fromEvent(event)
+        }
+
+        val first = command.ticketSections.first()
+        val policy = BlockchainIssuePolicy(
+            ticketPriceWei = first.priceWei,
+            primarySaleStart = first.saleStartAt ?: event.primarySaleStart,
+            primarySaleEnd = first.saleEndAt ?: event.primarySaleEnd,
+            resaleAllowed = first.resaleEnabled,
+            maxResalePriceRate = first.resaleCapRate,
+            resaleStart = event.resaleStart,
+            resaleEnd = event.resaleEnd,
+        )
+        val mismatch = command.ticketSections.firstOrNull { section ->
+            BlockchainIssuePolicy(
+                ticketPriceWei = section.priceWei,
+                primarySaleStart = section.saleStartAt ?: event.primarySaleStart,
+                primarySaleEnd = section.saleEndAt ?: event.primarySaleEnd,
+                resaleAllowed = section.resaleEnabled,
+                maxResalePriceRate = section.resaleCapRate,
+                resaleStart = event.resaleStart,
+                resaleEnd = event.resaleEnd,
+            ) != policy
+        }
+        if (mismatch != null) {
+            throw BusinessException(
+                ErrorCode.INVALID_REQUEST,
+                "블록체인 모드에서는 모든 구역의 가격, 판매 기간, 리셀 정책이 같아야 합니다.",
+            )
+        }
+
+        if (event.contractEventId == null) {
+            event.ticketPriceWei = policy.ticketPriceWei
+            event.primarySaleStart = policy.primarySaleStart
+            event.primarySaleEnd = policy.primarySaleEnd
+            event.resaleAllowed = policy.resaleAllowed
+            event.maxResalePriceRate = policy.maxResalePriceRate
+            event.resaleStart = policy.resaleStart
+            event.resaleEnd = policy.resaleEnd
+        } else if (policy != BlockchainIssuePolicy.fromEvent(event)) {
+            throw BusinessException(
+                ErrorCode.CONFLICT,
+                "이미 온체인 생성된 이벤트에는 기존 이벤트와 다른 가격, 판매 기간, 리셀 정책의 티켓을 추가 발행할 수 없습니다.",
+            )
+        }
+        return policy
+    }
+
+    private data class BlockchainIssuePolicy(
+        val ticketPriceWei: BigInteger,
+        val primarySaleStart: Instant,
+        val primarySaleEnd: Instant,
+        val resaleAllowed: Boolean,
+        val maxResalePriceRate: Int,
+        val resaleStart: Instant?,
+        val resaleEnd: Instant?,
+    ) {
+        companion object {
+            fun fromEvent(event: EventEntity): BlockchainIssuePolicy =
+                BlockchainIssuePolicy(
+                    ticketPriceWei = event.ticketPriceWei,
+                    primarySaleStart = event.primarySaleStart,
+                    primarySaleEnd = event.primarySaleEnd,
+                    resaleAllowed = event.resaleAllowed,
+                    maxResalePriceRate = event.maxResalePriceRate,
+                    resaleStart = event.resaleStart,
+                    resaleEnd = event.resaleEnd,
+                )
+        }
+    }
 }

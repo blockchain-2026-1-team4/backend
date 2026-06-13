@@ -98,6 +98,9 @@ class Web3jTrustTicketGateway(
             listOf(Uint256(contractEventId), Utf8String(seatInfo)),
         )
 
+    override fun burnUnissuedTicket(contractTokenId: BigInteger): BlockchainSubmission =
+        send("burnUnissuedTicket", listOf(Uint256(contractTokenId))).copy(contractTokenId = contractTokenId)
+
     override fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission =
         send("purchaseTicket", listOf(Uint256(contractTokenId)), valueWei)
 
@@ -242,10 +245,12 @@ class Web3jTrustTicketGateway(
             status = if (receipt == null) BlockchainTransactionStatus.SUBMITTED else BlockchainTransactionStatus.CONFIRMED,
             contractEventId = when (action) {
                 "createEvent" -> findIndexedUint(receipt, eventCreatedTopic, 1)
+                "addEventValidator", "setEventStatus", "cancelEvent" -> firstUint256(inputs)
                 else -> null
             },
             contractTokenId = when (action) {
                 "mintTicket" -> findIndexedUint(receipt, ticketMintedTopic, 2)
+                "burnUnissuedTicket", "purchaseTicket", "listTicket", "purchaseResaleTicket", "cancelListing", "useTicket" -> firstUint256(inputs)
                 else -> null
             },
         )
@@ -320,6 +325,9 @@ class Web3jTrustTicketGateway(
 
     private fun dataUint256(log: Log): BigInteger? =
         log.data?.removePrefix("0x")?.takeIf { it.isNotBlank() }?.take(64)?.let { BigInteger(it, 16) }
+
+    private fun firstUint256(inputs: List<Type<*>>): BigInteger? =
+        (inputs.firstOrNull() as? Uint256)?.value
 
     private fun sameAddress(left: String?, right: String?): Boolean =
         !left.isNullOrBlank() && !right.isNullOrBlank() && left.equals(right, ignoreCase = true)

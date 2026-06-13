@@ -21,6 +21,8 @@ interface TrustTicketGateway {
 
     fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission
 
+    fun burnUnissuedTicket(contractTokenId: BigInteger): BlockchainSubmission
+
     fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission
 
     fun confirmPrimaryPurchase(

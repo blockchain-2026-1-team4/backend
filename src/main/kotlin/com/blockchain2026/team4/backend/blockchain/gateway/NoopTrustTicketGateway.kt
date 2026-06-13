@@ -23,19 +23,26 @@ class NoopTrustTicketGateway : TrustTicketGateway {
 
     override fun addValidator(validatorWallet: String): BlockchainSubmission = simulated("addValidator")
 
-    override fun addEventValidator(contractEventId: BigInteger, validatorWallet: String): BlockchainSubmission = simulated("addEventValidator")
+    override fun addEventValidator(contractEventId: BigInteger, validatorWallet: String): BlockchainSubmission =
+        simulated("addEventValidator", contractEventId = contractEventId)
 
     override fun createEvent(command: ContractEventCommand): BlockchainSubmission =
         simulated("createEvent", contractEventId = BigInteger.valueOf(nextEventId.getAndIncrement()))
 
-    override fun setEventStatus(contractEventId: BigInteger, active: Boolean): BlockchainSubmission = simulated("setEventStatus")
+    override fun setEventStatus(contractEventId: BigInteger, active: Boolean): BlockchainSubmission =
+        simulated("setEventStatus", contractEventId = contractEventId)
 
-    override fun cancelEvent(contractEventId: BigInteger): BlockchainSubmission = simulated("cancelEvent")
+    override fun cancelEvent(contractEventId: BigInteger): BlockchainSubmission =
+        simulated("cancelEvent", contractEventId = contractEventId)
 
     override fun mintTicket(contractEventId: BigInteger, seatInfo: String): BlockchainSubmission =
         simulated("mintTicket", contractTokenId = BigInteger.valueOf(nextTokenId.getAndIncrement()))
 
-    override fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission = simulated("purchaseTicket")
+    override fun burnUnissuedTicket(contractTokenId: BigInteger): BlockchainSubmission =
+        simulated("burnUnissuedTicket", contractTokenId = contractTokenId)
+
+    override fun purchaseTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission =
+        simulated("purchaseTicket", contractTokenId = contractTokenId)
 
     override fun confirmPrimaryPurchase(
         contractTokenId: BigInteger,
@@ -43,7 +50,8 @@ class NoopTrustTicketGateway : TrustTicketGateway {
         transactionHash: String,
     ): BlockchainSubmission = simulated("purchaseTicket", transactionHash = transactionHash, contractTokenId = contractTokenId)
 
-    override fun listTicket(contractTokenId: BigInteger, resalePriceWei: BigInteger): BlockchainSubmission = simulated("listTicket")
+    override fun listTicket(contractTokenId: BigInteger, resalePriceWei: BigInteger): BlockchainSubmission =
+        simulated("listTicket", contractTokenId = contractTokenId)
 
     override fun confirmTicketListed(
         contractTokenId: BigInteger,
@@ -52,7 +60,8 @@ class NoopTrustTicketGateway : TrustTicketGateway {
         transactionHash: String,
     ): BlockchainSubmission = simulated("listTicket", transactionHash = transactionHash, contractTokenId = contractTokenId)
 
-    override fun purchaseResaleTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission = simulated("purchaseResaleTicket")
+    override fun purchaseResaleTicket(contractTokenId: BigInteger, valueWei: BigInteger): BlockchainSubmission =
+        simulated("purchaseResaleTicket", contractTokenId = contractTokenId)
 
     override fun confirmResalePurchase(
         contractTokenId: BigInteger,
@@ -62,7 +71,8 @@ class NoopTrustTicketGateway : TrustTicketGateway {
         transactionHash: String,
     ): BlockchainSubmission = simulated("purchaseResaleTicket", transactionHash = transactionHash, contractTokenId = contractTokenId)
 
-    override fun cancelListing(contractTokenId: BigInteger): BlockchainSubmission = simulated("cancelListing")
+    override fun cancelListing(contractTokenId: BigInteger): BlockchainSubmission =
+        simulated("cancelListing", contractTokenId = contractTokenId)
 
     override fun confirmListingCanceled(
         contractTokenId: BigInteger,
@@ -70,7 +80,8 @@ class NoopTrustTicketGateway : TrustTicketGateway {
         transactionHash: String,
     ): BlockchainSubmission = simulated("cancelListing", transactionHash = transactionHash, contractTokenId = contractTokenId)
 
-    override fun useTicket(contractTokenId: BigInteger): BlockchainSubmission = simulated("useTicket")
+    override fun useTicket(contractTokenId: BigInteger): BlockchainSubmission =
+        simulated("useTicket", contractTokenId = contractTokenId)
 
     override fun verifySignedTicket(
         contractTokenId: BigInteger,
