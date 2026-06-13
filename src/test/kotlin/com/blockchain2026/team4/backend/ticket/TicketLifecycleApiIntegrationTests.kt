@@ -158,6 +158,16 @@ class TicketLifecycleApiIntegrationTests : ApiIntegrationTestSupport() {
 
         val firstTicketId = readString(issuedResult, "$.data[0].id")
         val secondTicketId = readString(issuedResult, "$.data[1].id")
+        eventually {
+            mockMvc.perform(get("/api/v1/tickets/$firstTicketId"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.data.contractTokenId").isNotEmpty())
+        }
+        eventually {
+            mockMvc.perform(get("/api/v1/tickets/$secondTicketId"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.data.contractTokenId").isNotEmpty())
+        }
 
         mockMvc.perform(get("/api/v1/events/$eventId/tickets"))
             .andExpect(status().isOk)
