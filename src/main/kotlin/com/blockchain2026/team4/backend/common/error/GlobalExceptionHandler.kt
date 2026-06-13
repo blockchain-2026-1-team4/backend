@@ -8,6 +8,7 @@ import com.blockchain2026.team4.backend.common.config.AppProperties
 import com.blockchain2026.team4.backend.common.web.RequestIdFilter
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.ConstraintViolationException
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
@@ -21,6 +22,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 class GlobalExceptionHandler(
     private val appProperties: AppProperties,
 ) {
+    private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
+
     @ExceptionHandler(BusinessException::class)
     fun handleBusinessException(
         exception: BusinessException,
@@ -97,8 +100,10 @@ class GlobalExceptionHandler(
     fun handleUnexpected(
         exception: Exception,
         request: HttpServletRequest,
-    ): ResponseEntity<ApiErrorResponse> =
-        errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR.name, ErrorCode.INTERNAL_ERROR.defaultMessage, request, exception)
+    ): ResponseEntity<ApiErrorResponse> {
+        log.error("Unhandled API exception: {} {}", request.method, request.requestURI, exception)
+        return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR.name, ErrorCode.INTERNAL_ERROR.defaultMessage, request, exception)
+    }
 
     private fun errorResponse(
         status: HttpStatus,
