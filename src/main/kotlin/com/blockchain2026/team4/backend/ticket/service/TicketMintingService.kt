@@ -41,6 +41,9 @@ class TicketMintingService(
 
     @Transactional
     fun saveTokenId(ticketId: UUID, contractTokenId: BigInteger) {
-        ticketRepository.findById(ticketId).ifPresent { it.contractTokenId = contractTokenId }
+        ticketRepository.findById(ticketId).ifPresent {
+            it.contractTokenId = contractTokenId
+            ticketRepository.saveAndFlush(it)
+        }
     }
 }
