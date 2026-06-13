@@ -86,7 +86,7 @@ class RequirementAlignmentApiIntegrationTests : ApiIntegrationTestSupport() {
                 ),
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.data.contractEventId").isNotEmpty())
+            .andExpect(jsonPath("$.data.contractEventId").doesNotExist())
             .andExpect(jsonPath("$.data.remainingTicketCount").value(3))
             .andExpect(jsonPath("$.data.soldTicketCount").value(0))
             .andReturn()
@@ -168,12 +168,20 @@ class RequirementAlignmentApiIntegrationTests : ApiIntegrationTestSupport() {
                 .content("""{"seatInfos": ["R-1", "R-2"]}"""),
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.data[0].contractTokenId").isNotEmpty())
-            .andExpect(jsonPath("$.data[1].contractTokenId").isNotEmpty())
             .andReturn()
 
         val checkInTicketId = readString(issueResult, "$.data[0].id")
         val resaleTicketId = readString(issueResult, "$.data[1].id")
+        eventually {
+            mockMvc.perform(get("/api/v1/tickets/$checkInTicketId"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.data.contractTokenId").isNotEmpty())
+        }
+        eventually {
+            mockMvc.perform(get("/api/v1/tickets/$resaleTicketId"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.data.contractTokenId").isNotEmpty())
+        }
 
         mockMvc.perform(get("/api/v1/tickets/$checkInTicketId/validity"))
             .andExpect(status().isOk)
