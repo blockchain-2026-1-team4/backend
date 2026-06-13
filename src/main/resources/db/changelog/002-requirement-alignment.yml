@@ -336,3 +336,17 @@ databaseChangeLog:
                 WHEN status IN ('EXPIRED', 'CANCELED', 'CANCELLED') THEN 'CANCELLED'
                 ELSE status
               END;
+
+  - changeSet:
+      id: 011-blockchain-transaction-contract-targets
+      author: codex
+      changes:
+        - addColumn:
+            tableName: blockchain_transactions
+            columns:
+              - column:
+                  name: contract_event_id
+                  type: numeric(78,0)
+              - column:
+                  name: contract_token_id
+                  type: numeric(78,0)
